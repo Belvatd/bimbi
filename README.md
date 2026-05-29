@@ -1,6 +1,6 @@
 # 🧠 Bimbi AI Backend
 
-Backend MVP untuk aplikasi EdTech **Bimbi AI** — mendeteksi bakat tersembunyi anak dan memberikan rekomendasi pembelajaran personal menggunakan arsitektur **Fully RAG (Retrieval-Augmented Generation)**.
+Backend MVP untuk aplikasi EdTech **Bimbi AI** — mendeteksi bakat tersembunyi anak dan memberikan rekomendasi pembelajaran personal menggunakan arsitektur **Fully RAG (Retrieval-Augmented Generation)**. Sistem ini dibangun menggunakan praktik terbaik **Clean Architecture**.
 
 > **Tidak ada ML tradisional.** Semua analisis dilakukan oleh LLM (Gemini 2.5 Flash) yang diperkaya dengan konteks dari knowledge base (ChromaDB).
 
@@ -8,83 +8,102 @@ Backend MVP untuk aplikasi EdTech **Bimbi AI** — mendeteksi bakat tersembunyi 
 
 ## 🏗️ Arsitektur
 
+### Clean Architecture
+
+Proyek ini telah direfaktor untuk mematuhi konsep **Clean Architecture**, sehingga pemisahan kekhawatiran (separation of concerns) menjadi sangat jelas:
+
+1.  **Domain Layer (`internal/domain`)**: Inti dari sistem. Hanya berisi definisi struktur data dan antarmuka (*interface*). Tidak bergantung pada kerangka kerja luar.
+2.  **Repository Layer (`internal/repository`)**: Implementasi dari akses data, seperti PostgreSQL (menggunakan GORM) dan LLM/VectorDB (Chroma & Gemini).
+3.  **Service Layer (`internal/service`)**: Tempat di mana logika bisnis utama berada, seperti algoritma pembuatan *prompt* RAG dan pembuatan token JWT.
+4.  **Handler Layer (`internal/handler` & `middleware`)**: Lapisan transportasi HTTP yang dikelola menggunakan Gin. Menangani permintaan dan respons JSON.
+
+### Alur Kerja RAG
+
 ```
 Frontend Request
       │
       ▼
-┌─────────────────┐
-│   Gin API       │  POST /api/generate-insights
-│   (main.go)     │
-└────────┬────────┘
+┌──────────────────┐
+│ Gin API          │  POST /api/generate-insights (Dilindungi JWT)
+│ (cmd/api)        │
+└────────┬─────────┘
          │  1. Semantic Search
          ▼
-┌─────────────────┐
-│   ChromaDB      │  Vector Store (Docker)
-│  (localhost:8000)│  ← Indexed by ingest.go
-└────────┬────────┘
+┌──────────────────┐
+│ ChromaDB         │  Vector Store (Docker)
+│ (localhost:8000) │  ← Diisi oleh cmd/ingester
+└────────┬─────────┘
          │  2. Top-3 RAG Context
          ▼
-┌─────────────────┐
-│  Gemini 2.5     │  LLM Reasoning
-│  Flash (Google) │  + RAG Prompt
-└────────┬────────┘
+┌──────────────────┐
+│ Gemini 2.5 Flash │  LLM Reasoning
+│ (Google AI)      │  + RAG Prompt
+└────────┬─────────┘
          │  3. Structured JSON
          ▼
     JSON Response
 ```
 
+---
+
 ## 📁 Struktur Proyek
 
 ```
 bimbi/
-├── main.go                 # Gin API server (entry point)
-├── chroma_client.go        # ChromaDB HTTP client
-├── ingestion/
-│   └── ingest.go           # PDF ingestion & embedding script
-├── source_documents/       # Taruh file PDF/TXT di sini
-├── docker-compose.yml      # ChromaDB container
-├── .env                    # API keys (TIDAK di-commit)
-├── go.mod
-└── go.sum
+├── cmd/
+│   ├── api/                 # Entry point untuk API Server (Gin, Auth, RAG)
+│   │   └── main.go
+│   └── ingester/            # Entry point untuk skrip Ingestion Dokumen
+│       └── main.go
+├── internal/
+│   ├── config/              # Pemuatan environment (.env)
+│   ├── domain/              # Antarmuka dan entitas (Student, User, dsb)
+│   ├── handler/             # HTTP Controllers (Auth & Insight)
+│   ├── middleware/          # Middleware (JWT Auth)
+│   ├── repository/          # GORM Postgres, ChromaDB, dan Gemini repo
+│   └── service/             # Logika bisnis RAG dan Auth
+├── source_documents/        # Taruh file PDF psikologi pendidikan di sini
+├── docker-compose.yml       # Konfigurasi container ChromaDB & PostgreSQL
+├── .env                     # Kredensial & konfigurasi
+└── go.mod / go.sum
 ```
+
+---
 
 ## 🚀 Cara Menjalankan
 
 ### 1. Siapkan Environment
 
 ```bash
-# Clone / masuk ke direktori project
-cd bimbi
-
-# Isi API key di .env
+# Isi variabel di file .env
 nano .env
-# Ubah: GOOGLE_API_KEY=your_actual_key_here
+
+# Variabel yang harus ada (lihat bagian Environment Variables)
 ```
 
-### 2. Jalankan ChromaDB (Vector Database)
+### 2. Jalankan Database (PostgreSQL & ChromaDB)
 
 ```bash
 # Pastikan Docker Desktop sudah aktif
 docker-compose up -d
 
-# Verifikasi berjalan
-curl http://localhost:8000/api/v2/heartbeat
+# Cek status container (pastikan postgres dan chromadb berjalan)
+docker ps
 ```
 
-### 3. Siapkan & Ingest Dokumen
+### 3. Siapkan & Ingest Dokumen RAG
 
 ```bash
-# Taruh file PDF psikologi pendidikan ke folder ini:
-# ./source_documents/
+# Taruh file referensi PDF/TXT di folder ./source_documents/
 
-# Jalankan ingestion
-go run ingestion/ingest.go
+# Jalankan proses ingestion
+go run cmd/ingester/main.go
 ```
 
 ### 4. Jalankan API Server
 
 ```bash
-go run main.go chroma_client.go
+go run cmd/api/main.go
 # Server berjalan di: http://localhost:8080
 ```
 
@@ -92,23 +111,35 @@ go run main.go chroma_client.go
 
 ## 📡 API Endpoints
 
-### `GET /health`
-Cek status server.
+### Kumpulan Endpoint Auth (Tidak dilindungi)
 
+#### `POST /api/auth/register`
+Mendaftarkan pengguna baru ke database PostgreSQL.
+**Request:**
+```json
+{
+  "email": "guru@bimbi.id",
+  "password": "password123"
+}
+```
+
+#### `POST /api/auth/login`
+Melakukan otentikasi dan mengembalikan Bearer Token (JWT).
 **Response:**
 ```json
 {
-  "status": "ok",
-  "service": "bimbi-ai-backend",
-  "version": "1.0.0"
+  "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5c..."
 }
 ```
 
 ---
 
-### `POST /api/generate-insights`
+### Kumpulan Endpoint Insight (Dilindungi JWT)
 
-Analisis profil anak dan hasilkan rekomendasi bakat.
+#### `POST /api/generate-insights`
+Menghasilkan *insight* psikologi menggunakan RAG.
+**Header:** `Authorization: Bearer <token_dari_login>`
 
 **Request Body:**
 ```json
@@ -124,7 +155,7 @@ Analisis profil anak dan hasilkan rekomendasi bakat.
 **Response:**
 ```json
 {
-  "talent_label": "Spatial-Visual Intelligence",
+  "talent_label": "Kecerdasan Spasial-Visual",
   "personality_analysis": "Budi menunjukkan kecerdasan spasial-visual yang kuat...\n\nDalam konteks pembelajaran...",
   "parent_recommendations": [
     "Sediakan kit konstruksi seperti LEGO atau Minecraft untuk eksplorasi",
@@ -147,18 +178,26 @@ Analisis profil anak dan hasilkan rekomendasi bakat.
 
 | Komponen | Teknologi |
 |---|---|
-| Language | Go 1.21+ |
+| Bahasa | Go 1.21+ |
 | Web Framework | Gin (gin-gonic) |
-| AI/LLM | Google Gemini 2.5 Flash |
-| Embeddings | Google gemini-embedding-001 |
-| RAG Orchestration | langchaingo |
-| Vector Store | ChromaDB (Docker) |
+| Relational DB | PostgreSQL (via GORM) |
+| Vector Store | ChromaDB (via Docker) |
+| AI / LLM | Google Gemini 2.5 Flash |
+| Security | JWT (JSON Web Tokens), bcrypt |
 | Env Management | godotenv |
 
 ## 🔑 Environment Variables
 
-| Variable | Deskripsi |
-|---|---|
-| `GOOGLE_API_KEY` | API Key dari Google AI Studio |
-| `CHROMADB_URL` | URL ChromaDB (default: `http://localhost:8000`) |
-| `PORT` | Port server (default: `8080`) |
+Pastikan file `.env` di direktori utama (root) berisi konfigurasi berikut:
+
+| Variable | Deskripsi | Default |
+|---|---|---|
+| `PORT` | Port untuk API Server | `8080` |
+| `GOOGLE_API_KEY` | API Key dari Google AI Studio | **(Wajib diisi)** |
+| `CHROMADB_URL` | URL ChromaDB lokal | `http://localhost:8000` |
+| `DB_HOST` | Host PostgreSQL | `localhost` |
+| `DB_PORT` | Port PostgreSQL | `5432` |
+| `DB_USER` | Username PostgreSQL | **(Wajib diisi)** |
+| `DB_PASSWORD` | Password PostgreSQL | **(Wajib diisi)** |
+| `DB_NAME` | Nama database PostgreSQL | **(Wajib diisi)** |
+| `JWT_SECRET` | Kunci rahasia untuk enkripsi token JWT | **(Wajib diisi)** |
