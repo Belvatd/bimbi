@@ -2,7 +2,7 @@
 
 Backend MVP untuk aplikasi EdTech **Bimbi AI** — mendeteksi bakat tersembunyi anak dan memberikan rekomendasi pembelajaran personal menggunakan arsitektur **Fully RAG (Retrieval-Augmented Generation)**.
 
-> **Tidak ada ML tradisional.** Semua analisis dilakukan oleh LLM (Gemini 1.5 Flash) yang diperkaya dengan konteks dari knowledge base (ChromaDB).
+> **Tidak ada ML tradisional.** Semua analisis dilakukan oleh LLM (Gemini 2.5 Flash) yang diperkaya dengan konteks dari knowledge base (ChromaDB).
 
 ---
 
@@ -25,7 +25,7 @@ Frontend Request
          │  2. Top-3 RAG Context
          ▼
 ┌─────────────────┐
-│  Gemini 1.5     │  LLM Reasoning
+│  Gemini 2.5     │  LLM Reasoning
 │  Flash (Google) │  + RAG Prompt
 └────────┬────────┘
          │  3. Structured JSON
@@ -68,7 +68,7 @@ nano .env
 docker-compose up -d
 
 # Verifikasi berjalan
-curl http://localhost:8000/api/v1/heartbeat
+curl http://localhost:8000/api/v2/heartbeat
 ```
 
 ### 3. Siapkan & Ingest Dokumen
@@ -84,7 +84,7 @@ go run ingestion/ingest.go
 ### 4. Jalankan API Server
 
 ```bash
-go run main.go
+go run main.go chroma_client.go
 # Server berjalan di: http://localhost:8080
 ```
 
@@ -134,6 +134,9 @@ Analisis profil anak dan hasilkan rekomendasi bakat.
   "teacher_recommendations": [
     "Gunakan diagram dan peta konsep visual dalam pembelajaran",
     "Berikan tugas berbasis proyek seperti membuat model 3D atau presentasi visual"
+  ],
+  "sources": [
+    "buku_panduan_bakat.pdf"
   ]
 }
 ```
@@ -146,8 +149,8 @@ Analisis profil anak dan hasilkan rekomendasi bakat.
 |---|---|
 | Language | Go 1.21+ |
 | Web Framework | Gin (gin-gonic) |
-| AI/LLM | Google Gemini 1.5 Flash |
-| Embeddings | Google text-embedding-004 |
+| AI/LLM | Google Gemini 2.5 Flash |
+| Embeddings | Google gemini-embedding-001 |
 | RAG Orchestration | langchaingo |
 | Vector Store | ChromaDB (Docker) |
 | Env Management | godotenv |
