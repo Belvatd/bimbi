@@ -1,0 +1,17 @@
+# Environment
+.env
+
+# ChromaDB persistent data
+chroma_data/
+
+# Go build artifacts
+bimbi-backend
+*.exe
+
+# Source documents (may contain sensitive data)
+source_documents/*.pdf
+source_documents/*.txt
+
+# OS files
+.DS_Store
+Thumbs.db
