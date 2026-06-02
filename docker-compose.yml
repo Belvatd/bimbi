@@ -63,7 +63,7 @@ services:
     command: [ "./ingester" ]
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-      CHROMADB_URL: http://chromadb:8001
+      CHROMADB_URL: http://chromadb:8000
     depends_on:
       chromadb:
         condition: service_started
