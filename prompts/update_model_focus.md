@@ -9,7 +9,6 @@
 Please update the request and response structs to match this exact schema.
 
 * **Request Struct (e.g., `ChildProfile` or `AssessmentRequest`):**
-    * `parent_id` (string)
     * `child_name` (string)
     * `child_age` (int)
     * `daily_activities` (array of strings)
