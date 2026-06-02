@@ -1,9 +1,10 @@
 package domain
 
+// InsightResponse is the B2C parent-focused output payload.
 type InsightResponse struct {
-	TalentLabel            string   `json:"talent_label"`
-	PersonalityAnalysis    string   `json:"personality_analysis"`
-	ParentRecommendations  []string `json:"parent_recommendations"`
-	TeacherRecommendations []string `json:"teacher_recommendations"`
-	Sources                []string `json:"sources"` // nama file PDF sumber konteks RAG
+	TalentLabel        string   `json:"talent_label"`
+	EmpatheticAnalysis string   `json:"empathetic_analysis"`
+	HomeActivities     []string `json:"home_activities"`
+	LearningHacks      []string `json:"learning_hacks"`
+	Sources            []string `json:"sources"` // RAG source PDF filenames
 }

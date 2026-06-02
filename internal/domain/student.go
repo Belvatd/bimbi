@@ -1,9 +1,11 @@
 package domain
 
-type StudentPayload struct {
-	StudentName      string `json:"student_name"       binding:"required"`
-	Age              int    `json:"age"                binding:"required"`
-	ChildObservation string `json:"child_observation"  binding:"required"`
-	TeacherNotes     string `json:"teacher_notes"      binding:"required"`
-	ParentHopes      string `json:"parent_hopes"       binding:"required"`
+// AssessmentRequest is the B2C parent-focused input payload.
+type AssessmentRequest struct {
+	ChildName        string   `json:"child_name"        binding:"required"`
+	ChildAge         int      `json:"child_age"         binding:"required"`
+	DailyActivities  []string `json:"daily_activities"  binding:"required,min=1"`
+	ParentAnxiety    string   `json:"parent_anxiety"    binding:"required"`
+	PositiveTriggers string   `json:"positive_triggers" binding:"required"`
+	ParentGoals      string   `json:"parent_goals"      binding:"required"`
 }

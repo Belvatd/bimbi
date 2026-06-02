@@ -1,0 +1,513 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Bimbi AI API",
+    "description": "API collection documentation for Bimbi AI Backend. Built with Clean Architecture using Go and Gin. Includes authentication and RAG-based insights generation.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "http://bimbi-be-dev.btdev.my.id",
+      "description": "Development Environment"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Check the health and operational status of the Bimbi AI Backend service.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "service": {
+                      "type": "string",
+                      "example": "bimbi-ai-backend"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "1.0.0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "summary": "User Registration",
+        "description": "Register a new user account with an email and password.",
+        "operationId": "registerUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "User registered successfully"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - User already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "user already exists"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Failed to register user"
+                    },
+                    "details": {
+                      "type": "string",
+                      "example": "database connection failure"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "User Login",
+        "description": "Authenticate user credentials and receive a JWT Bearer Token.",
+        "operationId": "loginUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Login successful"
+                    },
+                    "token": {
+                      "type": "string",
+                      "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "invalid credentials"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Login failed"
+                    },
+                    "details": {
+                      "type": "string",
+                      "example": "something went wrong"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/generate-insights": {
+      "post": {
+        "summary": "Generate Insights",
+        "description": "Submit a parent's child profile and observations to receive an empathetic talent analysis and actionable home recommendations. Requires JWT authentication.",
+        "operationId": "generateInsights",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Insights generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload or request format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "invalid_payload"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Invalid request body: Key: 'AssessmentRequest.ChildName' Error:Field validation for 'ChildName' failed on the 'required' tag"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Invalid or expired token"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "service_error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "failed to query vector store: database connection timeout"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter the JWT token obtained from the `/api/auth/login` endpoint."
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email address",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "description": "User password (minimum 6 characters)",
+            "example": "password123"
+          }
+        },
+        "example": {
+          "email": "user@example.com",
+          "password": "password123"
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email address",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "description": "User password",
+            "example": "password123"
+          }
+        },
+        "example": {
+          "email": "user@example.com",
+          "password": "password123"
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-02T02:12:45Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-02T02:12:45Z"
+          }
+        }
+      },
+      "AssessmentRequest": {
+        "type": "object",
+        "required": [
+          "child_name",
+          "child_age",
+          "daily_activities",
+          "parent_anxiety",
+          "positive_triggers",
+          "parent_goals"
+        ],
+        "properties": {
+          "child_name": {
+            "type": "string",
+            "description": "Name of the child being assessed",
+            "example": "Ara"
+          },
+          "child_age": {
+            "type": "integer",
+            "description": "Age of the child in years",
+            "example": 5
+          },
+          "daily_activities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of activities the child frequently does at home",
+            "example": ["menggambar", "bermain balok", "menonton video edukasi"]
+          },
+          "parent_anxiety": {
+            "type": "string",
+            "description": "The parent's main concern or worry about their child",
+            "example": "Anak saya susah fokus dan selalu bergerak, saya khawatir dia tidak bisa belajar dengan baik di sekolah."
+          },
+          "positive_triggers": {
+            "type": "string",
+            "description": "Situations or topics that make the child visibly excited and engaged",
+            "example": "Sangat antusias saat diajak membangun sesuatu dari balok atau kardus bekas."
+          },
+          "parent_goals": {
+            "type": "string",
+            "description": "What the parent hopes to achieve or understand about their child",
+            "example": "Ingin tahu cara terbaik mendampingi anak belajar di rumah sesuai karakternya."
+          }
+        },
+        "example": {
+          "child_name": "Ara",
+          "child_age": 5,
+          "daily_activities": ["menggambar", "bermain balok", "menonton video edukasi"],
+          "parent_anxiety": "Anak saya susah fokus dan selalu bergerak, saya khawatir dia tidak bisa belajar dengan baik di sekolah.",
+          "positive_triggers": "Sangat antusias saat diajak membangun sesuatu dari balok atau kardus bekas.",
+          "parent_goals": "Ingin tahu cara terbaik mendampingi anak belajar di rumah sesuai karakternya."
+        }
+      },
+      "InsightResponse": {
+        "type": "object",
+        "properties": {
+          "talent_label": {
+            "type": "string",
+            "description": "Kecerdasan utama anak berdasarkan teori Multiple Intelligences (misal: Kecerdasan Spasial-Visual)",
+            "example": "Kecerdasan Spasial-Visual"
+          },
+          "empathetic_analysis": {
+            "type": "string",
+            "description": "Dua paragraf: paragraf pertama memvalidasi kekhawatiran orang tua, paragraf kedua membingkai ulang sebagai potensi bakat tersembunyi.",
+            "example": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya. Anak yang terus bergerak seringkali bukan tanda masalah, melainkan tanda energi kognitif yang tinggi.\n\nBerdasarkan aktivitas seperti membangun balok dan menggambar, Ara menunjukkan kecerdasan Spasial-Visual yang kuat. Kemampuan ini adalah fondasi bagi profesi seperti arsitek, desainer, dan insinyur."
+          },
+          "home_activities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "3 rekomendasi aktivitas rumah yang sangat spesifik menggunakan benda-benda rumah tangga biasa",
+            "example": [
+              "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+              "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+              "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan favoritnya."
+            ]
+          },
+          "learning_hacks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "2 tips praktis mendampingi gaya belajar anak di rumah",
+            "example": [
+              "Saat menjelaskan sesuatu, gunakan gambar atau sketsa sederhana, bukan hanya kata-kata.",
+              "Beri Ara 'tugas visual': minta dia menggambar apa yang baru dipelajari sebagai pengganti menulis ringkasan."
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nama file PDF sumber konteks RAG yang digunakan",
+            "example": [
+              "multiple_intelligences_gardner.pdf"
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Invalid request payload"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key: 'RegisterRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
+          }
+        }
+      }
+    }
+  }
+}

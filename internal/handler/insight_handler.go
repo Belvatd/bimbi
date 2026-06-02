@@ -20,7 +20,7 @@ func NewInsightHandler(ragService domain.RagService) *InsightHandler {
 }
 
 func (h *InsightHandler) GenerateInsights(c *gin.Context) {
-	var payload domain.StudentPayload
+	var payload domain.AssessmentRequest
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_payload",

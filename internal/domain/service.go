@@ -3,7 +3,7 @@ package domain
 import "context"
 
 type RagService interface {
-	GenerateInsights(ctx context.Context, payload StudentPayload) (*InsightResponse, error)
+	GenerateInsights(ctx context.Context, payload AssessmentRequest) (*InsightResponse, error)
 }
 
 type AuthService interface {

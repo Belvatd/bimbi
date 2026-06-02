@@ -25,7 +25,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -54,6 +54,22 @@ services:
       chromadb:
         condition: service_started
     restart: unless-stopped
+
+  ingester:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bimbi-ingester
+    command: [ "./ingester" ]
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      CHROMADB_URL: http://chromadb:8001
+    depends_on:
+      chromadb:
+        condition: service_started
+    profiles:
+      - manual
+    restart: "no"
 
 volumes:
   postgres_data:

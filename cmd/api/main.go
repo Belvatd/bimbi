@@ -67,7 +67,7 @@ func main() {
 		c.JSON(200, gin.H{
 			"status":  "ok",
 			"service": "bimbi-ai-backend",
-			"version": "1.0.0 (Clean Arch)",
+			"version": "1.0.0",
 		})
 	})
 

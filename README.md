@@ -138,17 +138,22 @@ Melakukan otentikasi dan mengembalikan Bearer Token (JWT).
 ### Kumpulan Endpoint Insight (Dilindungi JWT)
 
 #### `POST /api/generate-insights`
-Menghasilkan *insight* psikologi menggunakan RAG.
+Menghasilkan *insight* psikologi perkembangan anak untuk orang tua menggunakan RAG.
 **Header:** `Authorization: Bearer <token_dari_login>`
 
 **Request Body:**
 ```json
 {
-  "student_name": "Budi Santoso",
-  "age": 8,
-  "child_observation": "Suka menggambar, membangun balok, dan sering bertanya tentang bagaimana sesuatu bekerja",
-  "teacher_notes": "Sangat fokus saat kegiatan seni dan konstruksi. Mudah bosan dengan tugas menulis.",
-  "parent_hopes": "Ingin anak berkembang di bidang yang sesuai bakatnya dan percaya diri"
+  "child_name": "Ara",
+  "child_age": 5,
+  "daily_activities": [
+    "menggambar",
+    "bermain balok",
+    "menonton video edukasi"
+  ],
+  "parent_anxiety": "Anak saya susah fokus dan selalu bergerak, saya khawatir dia tidak bisa belajar dengan baik di sekolah.",
+  "positive_triggers": "Sangat antusias saat diajak membangun sesuatu dari balok atau kardus bekas.",
+  "parent_goals": "Ingin tahu cara terbaik mendampingi anak belajar di rumah sesuai karakternya."
 }
 ```
 
@@ -156,21 +161,43 @@ Menghasilkan *insight* psikologi menggunakan RAG.
 ```json
 {
   "talent_label": "Kecerdasan Spasial-Visual",
-  "personality_analysis": "Budi menunjukkan kecerdasan spasial-visual yang kuat...\n\nDalam konteks pembelajaran...",
-  "parent_recommendations": [
-    "Sediakan kit konstruksi seperti LEGO atau Minecraft untuk eksplorasi",
-    "Kunjungi museum sains atau pameran seni secara rutin",
-    "Dukung hobi menggambar dengan menyediakan alat gambar berkualitas"
+  "empathetic_analysis": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya. Anak yang terus bergerak seringkali bukan tanda masalah, melainkan tanda energi kognitif yang tinggi.\n\nBerdasarkan aktivitas seperti membangun balok dan menggambar, Ara menunjukkan kecerdasan Spasial-Visual yang kuat. Kemampuan ini adalah fondasi bagi profesi seperti arsitek, desainer, dan insinyur.",
+  "home_activities": [
+    "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+    "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+    "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan favoritnya."
   ],
-  "teacher_recommendations": [
-    "Gunakan diagram dan peta konsep visual dalam pembelajaran",
-    "Berikan tugas berbasis proyek seperti membuat model 3D atau presentasi visual"
+  "learning_hacks": [
+    "Saat menjelaskan sesuatu, gunakan gambar atau sketsa sederhana, bukan hanya kata-kata.",
+    "Beri Ara 'tugas visual': minta dia menggambar apa yang baru dipelajari sebagai pengganti menulis ringkasan."
   ],
   "sources": [
-    "buku_panduan_bakat.pdf"
+    "multiple_intelligences_gardner.pdf"
   ]
 }
 ```
+
+---
+
+## 🐋 Manual Docker Ingest Job
+
+Untuk melakukan ingestion dokumen di server atau lingkungan deployment (seperti Portainer):
+
+### Menggunakan CLI/Docker Compose
+Jika menggunakan docker-compose di VM, Anda dapat men-trigger job ini dengan perintah:
+```bash
+docker compose run --rm ingester
+```
+
+### Menggunakan Portainer UI
+1. Buka Portainer -> **Containers** -> Klik **Add Container**.
+2. Masukkan konfigurasinya:
+   * **Name**: `bimbi-ingester-manual`
+   * **Image**: Gunakan image backend Anda (misal: `bimbi-backend:latest`).
+   * **Command**: `[ "./ingester" ]` (atau tulis `./ingester` pada override command).
+   * **Env**: Tambahkan `GOOGLE_API_KEY` dan `CHROMADB_URL=http://chromadb:8000` (atau port internal `8001` sesuai compose).
+   * **Network**: Pilih network yang sama dengan stack Anda (misal: `<nama_stack>_default`).
+3. Klik **Deploy the container**. Container akan memproses file PDF lalu otomatis mati setelah selesai (`Stopped`).
 
 ---
 
@@ -178,7 +205,7 @@ Menghasilkan *insight* psikologi menggunakan RAG.
 
 | Komponen | Teknologi |
 |---|---|
-| Bahasa | Go 1.21+ |
+| Bahasa | Go 1.22+ |
 | Web Framework | Gin (gin-gonic) |
 | Relational DB | PostgreSQL (via GORM) |
 | Vector Store | ChromaDB (via Docker) |
@@ -194,7 +221,7 @@ Pastikan file `.env` di direktori utama (root) berisi konfigurasi berikut:
 |---|---|---|
 | `PORT` | Port untuk API Server | `8080` |
 | `GOOGLE_API_KEY` | API Key dari Google AI Studio | **(Wajib diisi)** |
-| `CHROMADB_URL` | URL ChromaDB lokal | `http://localhost:8000` |
+| `CHROMADB_URL` | URL ChromaDB lokal | `http://localhost:8001` |
 | `DB_HOST` | Host PostgreSQL | `localhost` |
 | `DB_PORT` | Port PostgreSQL | `5432` |
 | `DB_USER` | Username PostgreSQL | **(Wajib diisi)** |

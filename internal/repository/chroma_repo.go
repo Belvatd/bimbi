@@ -114,7 +114,17 @@ func (r *chromaRepo) Query(ctx context.Context, queryText string, topK int) (str
 
 	var sb strings.Builder
 	for i, doc := range qResp.Documents[0] {
-		sb.WriteString(fmt.Sprintf("[Konteks %d]\n%s\n\n", i+1, doc))
+		sourceName := ""
+		if i < len(qResp.Metadatas[0]) {
+			if src, ok := qResp.Metadatas[0][i]["source"]; ok && src != "" {
+				sourceName = src
+			}
+		}
+		if sourceName != "" {
+			sb.WriteString(fmt.Sprintf("[Konteks %d — Sumber: %s]\n%s\n\n", i+1, sourceName, doc))
+		} else {
+			sb.WriteString(fmt.Sprintf("[Konteks %d]\n%s\n\n", i+1, doc))
+		}
 	}
 
 	return strings.TrimSpace(sb.String()), sources, nil

@@ -16,6 +16,9 @@ COPY . .
 # Build the API binary
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/api ./cmd/api/main.go
 
+# Build the Ingester binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/ingester ./cmd/ingester/main.go
+
 # Production stage
 FROM alpine:latest
 
@@ -24,8 +27,12 @@ WORKDIR /app
 # Install CA certificates for external API requests (e.g. Google Gemini API)
 RUN apk --no-cache add ca-certificates tzdata
 
-# Copy the pre-built binary from the builder stage
+# Copy the pre-built binaries from the builder stage
 COPY --from=builder /app/api .
+COPY --from=builder /app/ingester .
+
+# Copy source documents for ingestion
+COPY source_documents/ ./source_documents/
 
 # Expose the API port
 EXPOSE 8080

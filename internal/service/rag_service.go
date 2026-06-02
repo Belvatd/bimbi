@@ -21,16 +21,16 @@ func NewRagService(vectorRepo domain.VectorRepo, llmRepo domain.LLMRepo) domain.
 	}
 }
 
-func (s *ragService) GenerateInsights(ctx context.Context, payload domain.StudentPayload) (*domain.InsightResponse, error) {
+func (s *ragService) GenerateInsights(ctx context.Context, payload domain.AssessmentRequest) (*domain.InsightResponse, error) {
 	queryText := s.buildQueryText(payload)
 
-	ragContext, sources, err := s.vectorRepo.Query(ctx, queryText, 10)
+	ragContext, chromaSources, err := s.vectorRepo.Query(ctx, queryText, 10)
 	if err != nil {
 		ragContext = "Tidak ada konteks knowledge base eksternal. Gunakan pengetahuan ahli Anda."
-		sources = []string{}
+		chromaSources = []string{}
 	}
 
-	fullPrompt := s.buildPrompt(ragContext, payload)
+	fullPrompt := s.buildPrompt(ragContext, chromaSources, payload)
 
 	rawResponse, err := s.llmRepo.Call(ctx, fullPrompt)
 	if err != nil {
@@ -42,63 +42,95 @@ func (s *ragService) GenerateInsights(ctx context.Context, payload domain.Studen
 		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
-	insight.Sources = sources
 	return insight, nil
 }
 
-func (s *ragService) buildQueryText(p domain.StudentPayload) string {
+// buildQueryText constructs the ChromaDB vector search string from
+// the parent's daily activity observations and positive triggers.
+func (s *ragService) buildQueryText(p domain.AssessmentRequest) string {
+	activities := strings.Join(p.DailyActivities, ", ")
 	return fmt.Sprintf(
-		"Child %s, age %d. Observations: %s. Teacher notes: %s. Parent hopes: %s",
-		p.StudentName, p.Age, p.ChildObservation, p.TeacherNotes, p.ParentHopes,
+		"Child likes: %s. Engaged when: %s.",
+		activities,
+		p.PositiveTriggers,
 	)
 }
 
-func (s *ragService) buildPrompt(ragContext string, p domain.StudentPayload) string {
-	system := `Anda adalah seorang psikolog pendidikan dan spesialis perkembangan anak berpengalaman lebih dari 20 tahun.
-Analisis profil anak menggunakan konteks riset yang disediakan (dari teori Multiple Intelligences Howard Gardner dan psikologi pendidikan modern).
-Bersikaplah mendorong, berbasis bukti, spesifik, dan peka budaya.
+// buildPrompt assembles the full system + user prompt for Gemini.
+func (s *ragService) buildPrompt(ragContext string, chromaSources []string, p domain.AssessmentRequest) string {
+	activities := strings.Join(p.DailyActivities, ", ")
 
-🇮🇩 WAJIB: SELURUH respons HARUS dalam Bahasa Indonesia. Tidak ada satu kata pun dalam bahasa Inggris atau bahasa lain yang diizinkan dalam nilai-nilai JSON.
-Ini adalah guardrail yang tidak boleh dilanggar. Pengguna adalah orang tua dan guru Indonesia.
-Pastikan jawaban Anda padat, jelas, dan ringkas untuk menghindari pemotongan (truncation).
+	system := `Anda adalah psikolog anak dan pakar parenting modern yang sangat empatik.
+Tugas Anda adalah membantu orang tua memahami potensi tersembunyi anak mereka berdasarkan observasi sehari-hari di rumah.
+
+Nada bicara: Hangat, menenangkan, dan praktis. Hindari jargon akademis.
+
+== ATURAN PENGGUNAAN KONTEKS (WAJIB DIPATUHI) ==
+Anda akan menerima "Konteks Riset" yang diambil dari knowledge base internal (ChromaDB).
+Setiap blok konteks diberi label "[Konteks N — Sumber: nama_file.pdf]" yang menunjukkan dari PDF mana teks tersebut berasal.
+Anda HARUS menggunakan konteks tersebut sebagai sumber pengetahuan UTAMA dan PERTAMA.
+Semua analisis talent_label, empathetic_analysis, home_activities, dan learning_hacks HARUS berakar dari teori dan fakta yang ada di dalam Konteks Riset tersebut.
+Jika Konteks Riset memuat teori Multiple Intelligences atau gaya belajar tertentu, gunakan terminologi dan kerangka pikir dari sana.
+Hanya gunakan pengetahuan umum Anda sebagai PELENGKAP jika konteks tidak mencakup aspek tertentu. Jangan pernah mengabaikan konteks yang diberikan.
+Untuk field "sources": cantumkan HANYA nama file PDF (dari label "Sumber:") yang BENAR-BENAR Anda gunakan sebagai referensi dalam analisis ini. Jangan cantumkan PDF yang tidak Anda rujuk.
+
+🇮🇩 WAJIB: SELURUH respons HARUS dalam Bahasa Indonesia. Tidak ada kata dalam bahasa lain.
+Pastikan jawaban padat, jelas, dan ringkas agar tidak terpotong.
 
 CRITICAL: Balas HANYA dengan objek JSON yang valid. Tidak ada markdown, tidak ada code fence, tidak ada penjelasan di luar JSON.
 Struktur JSON yang diperlukan:
 {
-  "talent_label": "<label bakat utama dalam Bahasa Indonesia, misal: 'Kecerdasan Spasial-Visual', 'Kecerdasan Musikal-Ritmis', 'Kecerdasan Kinestetik-Jasmani', 'Kecerdasan Linguistik-Verbal', 'Kecerdasan Logis-Matematis', 'Kecerdasan Interpersonal', 'Kecerdasan Intrapersonal', 'Kecerdasan Naturalis'>",
-  "personality_analysis": "<Dua paragraf lengkap dalam Bahasa Indonesia. Paragraf pertama: uraikan sifat kepribadian dan kekuatan kognitif anak berdasarkan observasi. Paragraf kedua: uraikan gaya belajar optimal anak dan bagaimana lingkungan membentuk perkembangannya.>",
-  "parent_recommendations": [
-    "<Rekomendasi spesifik dan dapat ditindaklanjuti untuk orang tua, dalam Bahasa Indonesia>",
-    "<Rekomendasi spesifik dan dapat ditindaklanjuti untuk orang tua, dalam Bahasa Indonesia>",
-    "<Rekomendasi spesifik dan dapat ditindaklanjuti untuk orang tua, dalam Bahasa Indonesia>"
+  "talent_label": "<label kecerdasan utama anak dalam Bahasa Indonesia — harus berdasarkan teori di Konteks Riset, misal: 'Kecerdasan Spasial-Visual', 'Kecerdasan Musikal-Ritmis', 'Kecerdasan Kinestetik-Jasmani', 'Kecerdasan Linguistik-Verbal', 'Kecerdasan Logis-Matematis', 'Kecerdasan Interpersonal', 'Kecerdasan Intrapersonal', 'Kecerdasan Naturalis'>",
+  "empathetic_analysis": "<Dua paragraf dalam Bahasa Indonesia yang BERAKAR dari Konteks Riset. Paragraf pertama: validasi kekhawatiran orang tua dengan empati. Paragraf kedua: bingkai ulang kekhawatiran tersebut sebagai potensi bakat tersembunyi berdasarkan teori dari Konteks Riset, aktivitas harian, dan positive triggers anak.>",
+  "home_activities": [
+    "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>",
+    "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>",
+    "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>"
   ],
-  "teacher_recommendations": [
-    "<Strategi kelas yang spesifik untuk guru, dalam Bahasa Indonesia>",
-    "<Strategi kelas yang spesifik untuk guru, dalam Bahasa Indonesia>"
-  ]
+  "learning_hacks": [
+    "<Tips mendampingi gaya belajar anak di rumah — berdasarkan pendekatan dari Konteks Riset, dalam Bahasa Indonesia>",
+    "<Tips mendampingi gaya belajar anak di rumah — berdasarkan pendekatan dari Konteks Riset, dalam Bahasa Indonesia>"
+  ],
+  "sources": ["<nama_file.pdf yang benar-benar Anda jadikan referensi>"]
 }
 
-INGAT: Semua nilai string di atas HARUS ditulis dalam Bahasa Indonesia yang baik dan benar.`
+INGAT: Semua nilai string HARUS dalam Bahasa Indonesia yang baik dan benar, kecuali nama file PDF di "sources" yang dipertahankan apa adanya.`
 
-	user := fmt.Sprintf(`## Konteks Riset Psikologi Pendidikan (RAG):
+	// List the available PDF sources so the LLM can cite them by exact filename.
+	sourceList := "(tidak ada sumber tersedia)"
+	if len(chromaSources) > 0 {
+		sourceList = "- " + strings.Join(chromaSources, "\n- ")
+	}
+
+	user := fmt.Sprintf(`== KONTEKS RISET DARI KNOWLEDGE BASE (SUMBER UTAMA — WAJIB DIGUNAKAN) ==
 %s
+== AKHIR KONTEKS RISET ==
+
+Daftar file PDF yang tersedia di knowledge base ini:
+%s
+
+Gunakan seluruh teori, fakta, dan kerangka pikir dari Konteks Riset di atas sebagai landasan utama analisis Anda.
+Pada field "sources" di JSON, cantumkan HANYA nama file PDF yang benar-benar Anda jadikan referensi dari daftar di atas.
 
 ---
 
-## Profil Murid:
-- **Nama:** %s
+## Profil Anak yang Perlu Dianalisis:
+- **Nama Anak:** %s
 - **Usia:** %d tahun
-- **Observasi Perilaku (Orang Tua/Pengamat):** %s
-- **Catatan Guru:** %s
-- **Harapan & Tujuan Orang Tua:** %s
+- **Aktivitas Harian yang Disukai:** %s
+- **Hal yang Memicu Antusiasme (Positive Triggers):** %s
+- **Kekhawatiran Orang Tua:** %s
+- **Tujuan & Harapan Orang Tua:** %s
 
-Analisis profil ini dan kembalikan HANYA objek JSON dalam Bahasa Indonesia.`,
+Berdasarkan Konteks Riset di atas dan profil anak ini, analisis dengan empati dan kembalikan HANYA objek JSON dalam Bahasa Indonesia.`,
 		ragContext,
-		p.StudentName,
-		p.Age,
-		p.ChildObservation,
-		p.TeacherNotes,
-		p.ParentHopes,
+		sourceList,
+		p.ChildName,
+		p.ChildAge,
+		activities,
+		p.PositiveTriggers,
+		p.ParentAnxiety,
+		p.ParentGoals,
 	)
 
 	return system + "\n\n" + user
