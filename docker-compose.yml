@@ -67,8 +67,6 @@ services:
     depends_on:
       chromadb:
         condition: service_started
-    profiles:
-      - manual
     restart: "no"
 
 volumes:
