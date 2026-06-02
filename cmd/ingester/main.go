@@ -14,7 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"bimbi-backend/internal/config"
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -53,9 +53,20 @@ var (
 
 func main() {
 	log.Println("🚀 Bimbi AI — Document Ingestion Pipeline Starting...")
-	cfg := config.LoadConfig()
-	geminiAPIKey = cfg.GeminiKey
-	chromaBaseURL := cfg.ChromaURL
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found, using system environment variables")
+	}
+
+	geminiAPIKey = os.Getenv("GOOGLE_API_KEY")
+	if geminiAPIKey == "" {
+		log.Fatal("FATAL: GOOGLE_API_KEY is not set")
+	}
+
+	chromaBaseURL := os.Getenv("CHROMADB_URL")
+	if chromaBaseURL == "" {
+		chromaBaseURL = "http://localhost:8000"
+	}
 
 	log.Printf("🗑️  Dropping existing collection '%s'...", collectionName)
 	_ = dropCollection(chromaBaseURL, collectionName)
