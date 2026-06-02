@@ -8,10 +8,6 @@ chroma_data/
 bimbi-backend
 *.exe
 
-# Source documents (may contain sensitive data)
-source_documents/*.pdf
-source_documents/*.txt
-
 # OS files
 .DS_Store
 Thumbs.db
