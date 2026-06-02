@@ -69,6 +69,50 @@ services:
         condition: service_started
     restart: "no"
 
+  mathesar:
+    image: mathesar/mathesar:latest
+    container_name: bimbi-mathesar
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_DB: ${MATHESAR_DB_NAME}
+      POSTGRES_USER: ${MATHESAR_DB_USER}
+      POSTGRES_PASSWORD: ${MATHESAR_DB_PASSWORD}
+      POSTGRES_HOST: mathesar-db
+      POSTGRES_PORT: 5432
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      ALLOWED_HOSTS: "*"
+      DEBUG: "false"
+      SECRET_KEY: ${MATHESAR_SECRET_KEY}
+    volumes:
+      - mathesar_static:/code/static
+      - mathesar_media:/code/.media
+      - mathesar_secrets:/code/.secrets
+    depends_on:
+      mathesar-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mathesar-db:
+    image: postgres:15-alpine
+    container_name: bimbi-mathesar-db
+    environment:
+      POSTGRES_DB: ${MATHESAR_DB_NAME}
+      POSTGRES_USER: ${MATHESAR_DB_USER}
+      POSTGRES_PASSWORD: ${MATHESAR_DB_PASSWORD}
+    volumes:
+      - mathesar_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${MATHESAR_DB_USER} -d ${MATHESAR_DB_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  mathesar_db_data:
+  mathesar_static:
+  mathesar_media:
+  mathesar_secrets:
 

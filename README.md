@@ -87,11 +87,24 @@ nano .env
 # Pastikan Docker Desktop sudah aktif
 docker-compose up -d
 
-# Cek status container (pastikan postgres dan chromadb berjalan)
+# Cek status container (pastikan postgres, chromadb, mathesar, dan mathesar-db berjalan)
 docker ps
 ```
 
-### 3. Siapkan & Ingest Dokumen RAG
+### 3. Mathesar Database Viewer (Optional)
+Kami telah menyertakan **Mathesar**, GUI database berbasis web, agar Anda dapat dengan mudah menginspeksi tabel database PostgreSQL (`users`, `students`, dll).
+
+1. Buka browser dan akses **[http://localhost:8000](http://localhost:8000)**.
+2. Buat akun admin baru saat pertama kali setup.
+3. Pilih **Add Database** dan hubungkan ke database Bimbi dengan detail berikut:
+   * **Database Engine:** `PostgreSQL`
+   * **Host:** `postgres` (koneksi internal sesama container docker)
+   * **Port:** `5432`
+   * **Database Name:** `bimbi_db` (sesuai nilai `DB_NAME` di `.env`)
+   * **Username:** `bimbi` (sesuai nilai `DB_USER` di `.env`)
+   * **Password:** `bimbi_password` (sesuai nilai `DB_PASSWORD` di `.env`)
+
+### 4. Siapkan & Ingest Dokumen RAG
 
 ```bash
 # Taruh file referensi PDF/TXT di folder ./source_documents/
@@ -100,7 +113,7 @@ docker ps
 go run cmd/ingester/main.go
 ```
 
-### 4. Jalankan API Server
+### 5. Jalankan API Server
 
 ```bash
 go run cmd/api/main.go
