@@ -73,7 +73,7 @@ services:
     image: mathesar/mathesar:latest
     container_name: bimbi-mathesar
     ports:
-      - "8000:8000"
+      - "8002:8000"
     environment:
       POSTGRES_DB: ${MATHESAR_DB_NAME}
       POSTGRES_USER: ${MATHESAR_DB_USER}
