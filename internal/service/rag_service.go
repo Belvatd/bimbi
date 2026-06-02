@@ -4,10 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"bimbi-backend/internal/domain"
 )
+
+// trailingCommaRe matches trailing commas before a closing bracket/brace,
+// which LLMs frequently emit but are invalid in strict JSON.
+var trailingCommaRe = regexp.MustCompile(`,\s*([}\]])`)
 
 type ragService struct {
 	vectorRepo domain.VectorRepo
@@ -69,7 +74,7 @@ Nada bicara: Hangat, menenangkan, dan praktis. Hindari jargon akademis.
 Anda akan menerima "Konteks Riset" yang diambil dari knowledge base internal (ChromaDB).
 Setiap blok konteks diberi label "[Konteks N — Sumber: nama_file.pdf]" yang menunjukkan dari PDF mana teks tersebut berasal.
 Anda HARUS menggunakan konteks tersebut sebagai sumber pengetahuan UTAMA dan PERTAMA.
-Semua analisis talent_label, empathetic_analysis, home_activities, dan learning_hacks HARUS berakar dari teori dan fakta yang ada di dalam Konteks Riset tersebut.
+Semua analisis talent_label, empathetic_analysis, theoretical_basis, home_activities, dan learning_hacks HARUS berakar dari teori dan fakta yang ada di dalam Konteks Riset tersebut.
 Jika Konteks Riset memuat teori Multiple Intelligences atau gaya belajar tertentu, gunakan terminologi dan kerangka pikir dari sana.
 Hanya gunakan pengetahuan umum Anda sebagai PELENGKAP jika konteks tidak mencakup aspek tertentu. Jangan pernah mengabaikan konteks yang diberikan.
 Untuk field "sources": cantumkan HANYA nama file PDF (dari label "Sumber:") yang BENAR-BENAR Anda gunakan sebagai referensi dalam analisis ini. Jangan cantumkan PDF yang tidak Anda rujuk.
@@ -82,6 +87,7 @@ Struktur JSON yang diperlukan:
 {
   "talent_label": "<label kecerdasan utama anak dalam Bahasa Indonesia — harus berdasarkan teori di Konteks Riset, misal: 'Kecerdasan Spasial-Visual', 'Kecerdasan Musikal-Ritmis', 'Kecerdasan Kinestetik-Jasmani', 'Kecerdasan Linguistik-Verbal', 'Kecerdasan Logis-Matematis', 'Kecerdasan Interpersonal', 'Kecerdasan Intrapersonal', 'Kecerdasan Naturalis'>",
   "empathetic_analysis": "<Dua paragraf dalam Bahasa Indonesia yang BERAKAR dari Konteks Riset. Paragraf pertama: validasi kekhawatiran orang tua dengan empati. Paragraf kedua: bingkai ulang kekhawatiran tersebut sebagai potensi bakat tersembunyi berdasarkan teori dari Konteks Riset, aktivitas harian, dan positive triggers anak.>",
+  "theoretical_basis": "<Penjelasan singkat landasan teori psikologi atau pendidikan yang mendasari analisis ini — berdasarkan Konteks Riset dan profil anak. Identifikasi teori spesifik (misalnya Kecerdasan Majemuk Howard Gardner, Teori Perkembangan Kognitif Piaget, pendekatan Montessori, dll.) yang memvalidasi empathetic_analysis dan rekomendasi yang diberikan. Mulai kalimat dengan 'Berdasarkan teori...' atau 'Mengacu pada...'. Gunakan bahasa yang mudah dipahami orang tua namun tetap akurat secara ilmiah. Seluruhnya dalam Bahasa Indonesia.>",
   "home_activities": [
     "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>",
     "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>",
@@ -138,18 +144,62 @@ Berdasarkan Konteks Riset di atas dan profil anak ini, analisis dengan empati da
 
 func (s *ragService) parseInsightJSON(raw string) (*domain.InsightResponse, error) {
 	cleaned := strings.TrimSpace(raw)
+
+	// Strip markdown code fences the LLM may wrap the JSON in.
 	for _, fence := range []string{"```json", "```"} {
 		cleaned = strings.TrimPrefix(cleaned, fence)
 	}
 	cleaned = strings.TrimSuffix(cleaned, "```")
 	cleaned = strings.TrimSpace(cleaned)
 
+	// Use balanced-brace counting to find the outermost JSON object.
+	// strings.LastIndex("}" ) fails when there is any text after the closing brace.
 	start := strings.Index(cleaned, "{")
-	end := strings.LastIndex(cleaned, "}")
-	if start == -1 || end == -1 || end <= start {
+	if start == -1 {
+		return nil, fmt.Errorf("no valid JSON object found in LLM response")
+	}
+
+	depth, end := 0, -1
+	inStr, esc := false, false
+	for i := start; i < len(cleaned); i++ {
+		ch := cleaned[i]
+		if esc {
+			esc = false
+			continue
+		}
+		if ch == '\\' && inStr {
+			esc = true
+			continue
+		}
+		if ch == '"' {
+			inStr = !inStr
+			continue
+		}
+		if inStr {
+			continue
+		}
+		switch ch {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				end = i
+			}
+		}
+		if end != -1 {
+			break
+		}
+	}
+
+	if end == -1 {
 		return nil, fmt.Errorf("no valid JSON object found in LLM response")
 	}
 	jsonStr := cleaned[start : end+1]
+
+	// Remove trailing commas that LLMs often generate (invalid in strict JSON).
+	// e.g. ["a", "b",] → ["a", "b"]
+	jsonStr = trailingCommaRe.ReplaceAllString(jsonStr, "$1")
 
 	var insight domain.InsightResponse
 	if err := json.Unmarshal([]byte(jsonStr), &insight); err != nil {
