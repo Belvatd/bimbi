@@ -2,16 +2,20 @@ package repository
 
 import (
 	"errors"
+	"time"
 
 	"bimbi-backend/internal/domain"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-// gormUser is an internal mapping struct so domain doesn't depend on GORM
 type gormUser struct {
-	gorm.Model
-	Email        string `gorm:"uniqueIndex;not null"`
-	PasswordHash string `gorm:"not null"`
+	ID           uuid.UUID      `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	CreatedAt    time.Time      `gorm:"autoCreateTime"`
+	UpdatedAt    time.Time      `gorm:"autoUpdateTime"`
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
+	Email        string         `gorm:"uniqueIndex;not null"`
+	PasswordHash string         `gorm:"not null"`
 }
 
 type postgresUserRepo struct {

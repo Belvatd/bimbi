@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"bimbi-backend/internal/domain"
+
+	"github.com/google/uuid"
 )
 
 // trailingCommaRe matches trailing commas before a closing bracket/brace,
@@ -15,43 +18,196 @@ import (
 var trailingCommaRe = regexp.MustCompile(`,\s*([}\]])`)
 
 type ragService struct {
-	vectorRepo domain.VectorRepo
-	llmRepo    domain.LLMRepo
+	vectorRepo     domain.VectorRepo
+	llmRepo        domain.LLMRepo
+	childRepo      domain.ChildRepository
+	assessmentRepo domain.AssessmentRepository
+	feedbackRepo   domain.FeedbackRepository
 }
 
-func NewRagService(vectorRepo domain.VectorRepo, llmRepo domain.LLMRepo) domain.RagService {
+func NewRagService(vectorRepo domain.VectorRepo, llmRepo domain.LLMRepo, childRepo domain.ChildRepository, assessmentRepo domain.AssessmentRepository, feedbackRepo domain.FeedbackRepository) domain.RagService {
 	return &ragService{
-		vectorRepo: vectorRepo,
-		llmRepo:    llmRepo,
+		vectorRepo:     vectorRepo,
+		llmRepo:        llmRepo,
+		childRepo:      childRepo,
+		assessmentRepo: assessmentRepo,
+		feedbackRepo:   feedbackRepo,
 	}
 }
 
 func (s *ragService) GenerateInsights(ctx context.Context, payload domain.AssessmentRequest) (*domain.InsightResponse, error) {
-	queryText := s.buildQueryText(payload)
+	// 1. Fetch child profile
+	child, err := s.childRepo.GetByID(ctx, payload.ChildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch child profile: %w", err)
+	}
 
+	// Calculate age (simplified)
+	age := time.Now().Year() - child.BirthDate.Year()
+	if time.Now().YearDay() < child.BirthDate.YearDay() {
+		age--
+	}
+	if age < 0 {
+		age = 0
+	}
+
+	// 2. Fetch last assessment
+	lastAssessment, err := s.assessmentRepo.GetLastAssessmentByChildID(ctx, payload.ChildID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch last assessment: %w", err)
+	}
+
+	// 3. Fetch RAG Context
+	queryText := s.buildQueryText(payload)
 	ragContext, chromaSources, err := s.vectorRepo.Query(ctx, queryText, 10)
 	if err != nil {
 		ragContext = "Tidak ada konteks knowledge base eksternal. Gunakan pengetahuan ahli Anda."
 		chromaSources = []string{}
 	}
 
-	fullPrompt := s.buildPrompt(ragContext, chromaSources, payload)
+	// 4. Build prompt
+	var pastAnxiety string
+	var pastFeedbacks []*domain.ActionFeedback
+	if lastAssessment != nil {
+		// Attempt to parse past anxiety from input payload
+		var pastPayload domain.AssessmentRequest
+		if err := json.Unmarshal(lastAssessment.InputPayload, &pastPayload); err == nil {
+			pastAnxiety = pastPayload.ParentAnxiety
+		}
+		
+		if s.feedbackRepo != nil {
+			pastFeedbacks, _ = s.feedbackRepo.GetFeedbacksByAssessmentID(ctx, lastAssessment.ID.String())
+		}
+	}
 
+	fullPrompt := s.buildPrompt(ragContext, chromaSources, payload, child.Name, age, pastAnxiety, pastFeedbacks)
+
+	// 5. Call LLM
 	rawResponse, err := s.llmRepo.Call(ctx, fullPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("llm error: %w", err)
 	}
 
+	// 6. Parse response
 	insight, err := s.parseInsightJSON(rawResponse)
 	if err != nil {
 		return nil, fmt.Errorf("parse error: %w", err)
 	}
 
+	// 7. Save Assessment to DB
+	inputJSON, _ := json.Marshal(payload)
+	aiJSON, _ := json.Marshal(insight)
+
+	parsedChildID, _ := uuid.Parse(payload.ChildID)
+	assessment := &domain.Assessment{
+		ChildID:        parsedChildID,
+		AssessmentDate: time.Now(),
+		InputPayload:   inputJSON,
+		AIResponse:     aiJSON,
+	}
+	if err := s.assessmentRepo.Create(ctx, assessment); err != nil {
+		// Just log error, don't fail the request since insight is already generated
+		fmt.Printf("warning: failed to save assessment to db: %v\n", err)
+	}
+
 	return insight, nil
 }
 
-// buildQueryText constructs the ChromaDB vector search string from
-// the parent's daily activity observations and positive triggers.
+func (s *ragService) GetChildDashboard(ctx context.Context, childID string) (domain.DashboardResponse, error) {
+	assessments, err := s.assessmentRepo.GetAssessmentsByChildID(ctx, childID)
+	if err != nil {
+		return domain.DashboardResponse{}, fmt.Errorf("failed to fetch assessments: %w", err)
+	}
+
+	var timeline []domain.TimelineItem
+	for _, a := range assessments {
+		var input domain.AssessmentRequest
+		if err := json.Unmarshal(a.InputPayload, &input); err != nil {
+			fmt.Printf("warning: failed to unmarshal input payload for assessment %s: %v\n", a.ID, err)
+			continue
+		}
+
+		var ai domain.InsightResponse
+		if err := json.Unmarshal(a.AIResponse, &ai); err != nil {
+			fmt.Printf("warning: failed to unmarshal ai response for assessment %s: %v\n", a.ID, err)
+			continue
+		}
+
+		progressSummary := ai.ProgressAnalysis
+		if progressSummary == "" {
+			progressSummary = ai.EmpatheticAnalysis
+		}
+
+		timeline = append(timeline, domain.TimelineItem{
+			AssessmentID:       a.ID.String(),
+			Date:               a.AssessmentDate,
+			ActivitiesObserved: input.DailyActivities,
+			TalentLabel:        ai.TalentLabel,
+			ProgressSummary:    progressSummary,
+			FullResponse:       ai,
+		})
+	}
+
+	if timeline == nil {
+		timeline = []domain.TimelineItem{}
+	}
+
+	return domain.DashboardResponse{
+		ChildID:          childID,
+		TotalAssessments: len(timeline),
+		Timeline:         timeline,
+	}, nil
+}
+
+// GetHomeActivities returns the recommended home_activities from the LATEST assessment
+// for the given child, each annotated with a `done` flag based on whether the parent
+// has already submitted feedback for that activity via POST /api/assessments/:id/feedback.
+// The response includes assessment_id so the frontend knows which assessment to post feedback to.
+func (s *ragService) GetHomeActivities(ctx context.Context, childID string) (*domain.HomeActivitiesResponse, error) {
+	// 1. Fetch the latest assessment for this child
+	assessment, err := s.assessmentRepo.GetLastAssessmentByChildID(ctx, childID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch latest assessment: %w", err)
+	}
+	if assessment == nil {
+		return &domain.HomeActivitiesResponse{
+			AssessmentID: "",
+			Activities:   []domain.HomeActivityItem{},
+		}, nil
+	}
+
+	// 2. Parse the AI response to extract home_activities
+	var aiResp domain.InsightResponse
+	if err := json.Unmarshal(assessment.AIResponse, &aiResp); err != nil {
+		return nil, fmt.Errorf("failed to parse assessment AI response: %w", err)
+	}
+
+	assessmentID := assessment.ID.String()
+
+	// 3. Fetch completed activity names for this assessment
+	completedNames, err := s.feedbackRepo.GetCompletedActivityNamesByAssessmentID(ctx, assessmentID)
+	if err != nil {
+		// Non-fatal: return activities without done status rather than failing entirely
+		fmt.Printf("warning: failed to fetch completed activity names: %v\n", err)
+		completedNames = map[string]bool{}
+	}
+
+	// 4. Build response — mark each activity done if it has a feedback entry
+	items := make([]domain.HomeActivityItem, 0, len(aiResp.HomeActivities))
+	for _, name := range aiResp.HomeActivities {
+		done := completedNames[strings.ToLower(strings.TrimSpace(name))]
+		items = append(items, domain.HomeActivityItem{
+			ActivityName: name,
+			Done:         done,
+		})
+	}
+
+	return &domain.HomeActivitiesResponse{
+		AssessmentID: assessmentID,
+		Activities:   items,
+	}, nil
+}
+
 func (s *ragService) buildQueryText(p domain.AssessmentRequest) string {
 	activities := strings.Join(p.DailyActivities, ", ")
 	return fmt.Sprintf(
@@ -61,8 +217,7 @@ func (s *ragService) buildQueryText(p domain.AssessmentRequest) string {
 	)
 }
 
-// buildPrompt assembles the full system + user prompt for Gemini.
-func (s *ragService) buildPrompt(ragContext string, chromaSources []string, p domain.AssessmentRequest) string {
+func (s *ragService) buildPrompt(ragContext string, chromaSources []string, p domain.AssessmentRequest, childName string, childAge int, pastAnxiety string, pastFeedbacks []*domain.ActionFeedback) string {
 	activities := strings.Join(p.DailyActivities, ", ")
 
 	system := `Anda adalah psikolog anak dan pakar parenting modern yang sangat empatik.
@@ -85,22 +240,37 @@ Pastikan jawaban padat, jelas, dan ringkas agar tidak terpotong.
 CRITICAL: Balas HANYA dengan objek JSON yang valid. Tidak ada markdown, tidak ada code fence, tidak ada penjelasan di luar JSON.
 Struktur JSON yang diperlukan:
 {
-  "talent_label": "<label kecerdasan utama anak dalam Bahasa Indonesia — harus berdasarkan teori di Konteks Riset, misal: 'Kecerdasan Spasial-Visual', 'Kecerdasan Musikal-Ritmis', 'Kecerdasan Kinestetik-Jasmani', 'Kecerdasan Linguistik-Verbal', 'Kecerdasan Logis-Matematis', 'Kecerdasan Interpersonal', 'Kecerdasan Intrapersonal', 'Kecerdasan Naturalis'>",
-  "empathetic_analysis": "<Dua paragraf dalam Bahasa Indonesia yang BERAKAR dari Konteks Riset. Paragraf pertama: validasi kekhawatiran orang tua dengan empati. Paragraf kedua: bingkai ulang kekhawatiran tersebut sebagai potensi bakat tersembunyi berdasarkan teori dari Konteks Riset, aktivitas harian, dan positive triggers anak.>",
-  "theoretical_basis": "<Penjelasan singkat landasan teori psikologi atau pendidikan yang mendasari analisis ini — berdasarkan Konteks Riset dan profil anak. Identifikasi teori spesifik (misalnya Kecerdasan Majemuk Howard Gardner, Teori Perkembangan Kognitif Piaget, pendekatan Montessori, dll.) yang memvalidasi empathetic_analysis dan rekomendasi yang diberikan. Mulai kalimat dengan 'Berdasarkan teori...' atau 'Mengacu pada...'. Gunakan bahasa yang mudah dipahami orang tua namun tetap akurat secara ilmiah. Seluruhnya dalam Bahasa Indonesia.>",
-  "home_activities": [
-    "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>",
-    "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>",
-    "<Rekomendasi aktivitas rumah yang spesifik, terinspirasi dari Konteks Riset, menggunakan benda-benda rumah tangga biasa, dalam Bahasa Indonesia>"
+  "talent_label": "<label kecerdasan utama anak dalam Bahasa Indonesia — harus berdasarkan teori di Konteks Riset>",
+  "empathetic_analysis": "<Dua paragraf dalam Bahasa Indonesia yang BERAKAR dari Konteks Riset. Paragraf pertama: validasi kekhawatiran orang tua dengan empati. Paragraf kedua: bingkai ulang kekhawatiran tersebut sebagai potensi bakat tersembunyi.>",
+  "theoretical_basis": "<Penjelasan singkat landasan teori psikologi atau pendidikan yang mendasari analisis ini — berdasarkan Konteks Riset dan profil anak.>",`
+	
+	if pastAnxiety != "" {
+		system += "\n  \"progress_analysis\": \"<Satu paragraf yang mengakui perubahan perilaku anak. Bandingkan kecemasan masa lalu (Past Anxiety) dengan kecemasan saat ini (Current Anxiety). Berikan dorongan semangat kepada orang tua.>\",\n"
+	}
+
+	system += `  "home_activities": [
+    "<Rekomendasi aktivitas rumah 1>",
+    "<Rekomendasi aktivitas rumah 2>",
+    "<Rekomendasi aktivitas rumah 3>"
   ],
   "learning_hacks": [
-    "<Tips mendampingi gaya belajar anak di rumah — berdasarkan pendekatan dari Konteks Riset, dalam Bahasa Indonesia>",
-    "<Tips mendampingi gaya belajar anak di rumah — berdasarkan pendekatan dari Konteks Riset, dalam Bahasa Indonesia>"
+    "<Tips mendampingi gaya belajar 1>",
+    "<Tips mendampingi gaya belajar 2>"
   ],
   "sources": ["<nama_file.pdf yang benar-benar Anda jadikan referensi>"]
 }
 
 INGAT: Semua nilai string HARUS dalam Bahasa Indonesia yang baik dan benar, kecuali nama file PDF di "sources" yang dipertahankan apa adanya.`
+
+	if len(pastFeedbacks) > 0 {
+		var feedbackStrings []string
+		for i, fb := range pastFeedbacks {
+			feedbackStrings = append(feedbackStrings, fmt.Sprintf("%d. [%s] - Parent noted: [%s]. Status: [%s].", i+1, fb.ActivityName, fb.ParentExperience, fb.Status))
+		}
+		feedbackSummary := strings.Join(feedbackStrings, "\n")
+		
+		system += fmt.Sprintf("\n\n== FEEDBACK AKTIVITAS SEBELUMNYA ==\nPada assessment sebelumnya, orang tua mencoba aktivitas ini:\n%s\n\nInstruksi Tambahan: Gunakan pengalaman masa lalu orang tua ini untuk mengevaluasi kemajuan dan memastikan 'home_activities' dan 'learning_hacks' YANG BARU disesuaikan. Jika mereka kesulitan (struggled), berikan alternatif yang lebih mudah. Jika mereka berhasil (completed), berikan tingkat berikutnya.", feedbackSummary)
+	}
 
 	// List the available PDF sources so the LLM can cite them by exact filename.
 	sourceList := "(tidak ada sumber tersedia)"
@@ -124,17 +294,24 @@ Pada field "sources" di JSON, cantumkan HANYA nama file PDF yang benar-benar And
 - **Nama Anak:** %s
 - **Usia:** %d tahun
 - **Aktivitas Harian yang Disukai:** %s
-- **Hal yang Memicu Antusiasme (Positive Triggers):** %s
-- **Kekhawatiran Orang Tua:** %s
+- **Hal yang Memicu Antusiasme (Positive Triggers):** %s`,
+		ragContext,
+		sourceList,
+		childName,
+		childAge,
+		activities,
+		p.PositiveTriggers,
+	)
+
+	if pastAnxiety != "" {
+		user += fmt.Sprintf("\n- **Kekhawatiran Masa Lalu (Assessment Sebelumnya):** %s", pastAnxiety)
+	}
+
+	user += fmt.Sprintf(`
+- **Kekhawatiran Saat Ini (Current Anxiety):** %s
 - **Tujuan & Harapan Orang Tua:** %s
 
 Berdasarkan Konteks Riset di atas dan profil anak ini, analisis dengan empati dan kembalikan HANYA objek JSON dalam Bahasa Indonesia.`,
-		ragContext,
-		sourceList,
-		p.ChildName,
-		p.ChildAge,
-		activities,
-		p.PositiveTriggers,
 		p.ParentAnxiety,
 		p.ParentGoals,
 	)
@@ -145,15 +322,12 @@ Berdasarkan Konteks Riset di atas dan profil anak ini, analisis dengan empati da
 func (s *ragService) parseInsightJSON(raw string) (*domain.InsightResponse, error) {
 	cleaned := strings.TrimSpace(raw)
 
-	// Strip markdown code fences the LLM may wrap the JSON in.
 	for _, fence := range []string{"```json", "```"} {
 		cleaned = strings.TrimPrefix(cleaned, fence)
 	}
 	cleaned = strings.TrimSuffix(cleaned, "```")
 	cleaned = strings.TrimSpace(cleaned)
 
-	// Use balanced-brace counting to find the outermost JSON object.
-	// strings.LastIndex("}" ) fails when there is any text after the closing brace.
 	start := strings.Index(cleaned, "{")
 	if start == -1 {
 		return nil, fmt.Errorf("no valid JSON object found in LLM response")
@@ -197,8 +371,6 @@ func (s *ragService) parseInsightJSON(raw string) (*domain.InsightResponse, erro
 	}
 	jsonStr := cleaned[start : end+1]
 
-	// Remove trailing commas that LLMs often generate (invalid in strict JSON).
-	// e.g. ["a", "b",] → ["a", "b"]
 	jsonStr = trailingCommaRe.ReplaceAllString(jsonStr, "$1")
 
 	var insight domain.InsightResponse

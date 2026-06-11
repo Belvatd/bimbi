@@ -62,7 +62,7 @@ func (s *authService) Login(email, password string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
+		"user_id": user.ID.String(),
 		"exp":     time.Now().Add(time.Hour * 24).Unix(),
 	})
 

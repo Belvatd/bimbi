@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Bimbi AI API",
-    "description": "API collection documentation for Bimbi AI Backend. Built with Clean Architecture using Go and Gin. Includes authentication and RAG-based insights generation.",
-    "version": "1.0.0"
+    "description": "API collection documentation for Bimbi AI Backend. Built with Clean Architecture using Go and Gin. Includes authentication, RAG-based insights generation, longitudinal child tracking, and home activity recommendations with done-status tracking.",
+    "version": "1.1.0"
   },
   "servers": [
     {
@@ -27,21 +27,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "ok"
-                    },
-                    "service": {
-                      "type": "string",
-                      "example": "bimbi-ai-backend"
-                    },
-                    "version": {
-                      "type": "string",
-                      "example": "1.0.0"
-                    }
-                  }
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "service": "bimbi-ai-backend",
+                  "version": "1.0.0"
                 }
               }
             }
@@ -60,6 +51,10 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "email": "orang.tua@example.com",
+                "password": "password123"
               }
             }
           }
@@ -72,13 +67,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "User registered successfully"
-                    },
-                    "user": {
-                      "$ref": "#/components/schemas/User"
-                    }
+                    "message": { "type": "string" },
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                },
+                "example": {
+                  "message": "User registered successfully",
+                  "user": {
+                    "id": 1,
+                    "email": "orang.tua@example.com",
+                    "created_at": "2026-06-11T03:00:00Z",
+                    "updated_at": "2026-06-11T03:00:00Z"
                   }
                 }
               }
@@ -88,8 +87,10 @@
             "description": "Invalid request payload",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": "invalid_payload",
+                  "message": "Key: 'RegisterRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
                 }
               }
             }
@@ -100,13 +101,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "user already exists"
-                    }
-                  }
-                }
+                  "properties": { "error": { "type": "string" } }
+                },
+                "example": { "error": "user already exists" }
               }
             }
           },
@@ -117,16 +114,11 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Failed to register user"
-                    },
-                    "details": {
-                      "type": "string",
-                      "example": "database connection failure"
-                    }
+                    "error": { "type": "string" },
+                    "details": { "type": "string" }
                   }
-                }
+                },
+                "example": { "error": "Failed to register user", "details": "database connection failure" }
               }
             }
           }
@@ -142,8 +134,10 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
+              "schema": { "$ref": "#/components/schemas/LoginRequest" },
+              "example": {
+                "email": "orang.tua@example.com",
+                "password": "password123"
               }
             }
           }
@@ -156,15 +150,13 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Login successful"
-                    },
-                    "token": {
-                      "type": "string",
-                      "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    }
+                    "message": { "type": "string" },
+                    "token": { "type": "string" }
                   }
+                },
+                "example": {
+                  "message": "Login successful",
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoib3JhbmcudHVhQGV4YW1wbGUuY29tIiwiZXhwIjoxNzQ5NjkwNDAwfQ.abc123"
                 }
               }
             }
@@ -173,9 +165,8 @@
             "description": "Invalid request payload",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "invalid_payload", "message": "email is required" }
               }
             }
           },
@@ -185,13 +176,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "invalid credentials"
-                    }
-                  }
-                }
+                  "properties": { "error": { "type": "string" } }
+                },
+                "example": { "error": "invalid credentials" }
               }
             }
           },
@@ -202,38 +189,520 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Login failed"
-                    },
-                    "details": {
-                      "type": "string",
-                      "example": "something went wrong"
-                    }
+                    "error": { "type": "string" },
+                    "details": { "type": "string" }
                   }
-                }
+                },
+                "example": { "error": "Login failed", "details": "something went wrong" }
               }
             }
           }
         }
       }
     },
-    "/api/generate-insights": {
+    "/api/children": {
+      "get": {
+        "summary": "Get All Children",
+        "description": "Get a list of all child profiles belonging to the authenticated user.",
+        "operationId": "getChildren",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Child" }
+                },
+                "example": [
+                  {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "parent_id": "orang.tua@example.com",
+                    "name": "Ara",
+                    "birth_date": "2021-05-20T00:00:00Z",
+                    "created_at": "2026-06-01T10:00:00Z",
+                    "updated_at": "2026-06-01T10:00:00Z"
+                  },
+                  {
+                    "id": "456e7890-e89b-12d3-a456-426614174001",
+                    "parent_id": "orang.tua@example.com",
+                    "name": "Bima",
+                    "birth_date": "2019-03-15T00:00:00Z",
+                    "created_at": "2026-06-02T08:00:00Z",
+                    "updated_at": "2026-06-02T08:00:00Z"
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "db_error", "message": "Failed to fetch children" }
+              }
+            }
+          }
+        }
+      },
       "post": {
-        "summary": "Generate Insights",
-        "description": "Submit a parent's child profile and observations to receive an empathetic talent analysis and actionable home recommendations. Requires JWT authentication.",
-        "operationId": "generateInsights",
-        "security": [
+        "summary": "Create Child Profile",
+        "description": "Create a new child profile for longitudinal tracking. Requires JWT authentication.",
+        "operationId": "createChild",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateChildRequest" },
+              "example": {
+                "name": "Ara",
+                "birth_date": "2021-05-20"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Child profile created successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Child" },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "parent_id": "orang.tua@example.com",
+                  "name": "Ara",
+                  "birth_date": "2021-05-20T00:00:00Z",
+                  "created_at": "2026-06-11T03:00:00Z",
+                  "updated_at": "2026-06-11T03:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "invalid_payload", "message": "birth_date is required" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "db_error", "message": "Failed to create child" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/children/{id}": {
+      "get": {
+        "summary": "Get Child by ID",
+        "operationId": "getChild",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
           {
-            "BearerAuth": []
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Child" },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "parent_id": "orang.tua@example.com",
+                  "name": "Ara",
+                  "birth_date": "2021-05-20T00:00:00Z",
+                  "created_at": "2026-06-01T10:00:00Z",
+                  "updated_at": "2026-06-01T10:00:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "not_found", "message": "Child not found" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Child Profile",
+        "operationId": "updateChild",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssessmentRequest"
+              "schema": { "$ref": "#/components/schemas/CreateChildRequest" },
+              "example": {
+                "name": "Ara Putri",
+                "birth_date": "2021-05-20"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Child" },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "parent_id": "orang.tua@example.com",
+                  "name": "Ara Putri",
+                  "birth_date": "2021-05-20T00:00:00Z",
+                  "created_at": "2026-06-01T10:00:00Z",
+                  "updated_at": "2026-06-11T10:00:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "not_found", "message": "Child not found" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Child Profile",
+        "operationId": "deleteChild",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                },
+                "example": { "message": "Child deleted successfully" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "not_found", "message": "Child not found" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/children/{id}/home-activities": {
+      "get": {
+        "summary": "Get Home Activity Recommendations",
+        "description": "Get the AI-recommended home activities from the child's LATEST assessment, each annotated with a `done` flag.\n\n- `done: true` → parent has already submitted feedback for this activity.\n- `done: false` → activity not yet acted on.\n\nThe response includes `assessment_id` — use it when submitting feedback to `POST /api/assessments/{assessment_id}/feedback`. Parents can always submit free-text activities regardless of this list. Returns empty `activities` array if no assessment exists yet.",
+        "operationId": "getHomeActivities",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Home activities from latest assessment with done status. Returns empty activities array if no assessment exists yet.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HomeActivitiesResponse" },
+                "example": {
+                  "assessment_id": "712deb8a-da13-46e3-b36e-da27d7f05a17",
+                  "activities": [
+                    {
+                      "activity_name": "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+                      "done": true
+                    },
+                    {
+                      "activity_name": "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+                      "done": false
+                    },
+                    {
+                      "activity_name": "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan favoritnya.",
+                      "done": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "service_error", "message": "failed to fetch latest assessment" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/children/{id}/dashboard": {
+      "get": {
+        "summary": "Get Child Dashboard",
+        "description": "Get the full longitudinal assessment timeline for a child.",
+        "operationId": "getChildDashboard",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DashboardResponse" },
+                "example": {
+                  "child_id": "123e4567-e89b-12d3-a456-426614174000",
+                  "total_assessments": 2,
+                  "timeline": [
+                    {
+                      "assessment_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "date": "2026-05-01T09:00:00Z",
+                      "activities_observed": ["menggambar", "bermain balok"],
+                      "talent_label": "Kecerdasan Spasial-Visual",
+                      "progress_summary": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya.",
+                      "full_response": {
+                        "talent_label": "Kecerdasan Spasial-Visual",
+                        "empathetic_analysis": "Kekhawatiran Anda sangat wajar...\n\nBerdasarkan aktivitas seperti membangun balok dan menggambar...",
+                        "theoretical_basis": "Berdasarkan teori Kecerdasan Majemuk Howard Gardner...",
+                        "progress_analysis": "",
+                        "home_activities": [
+                          "Bangun 'kota mini' dari kardus bekas sabun.",
+                          "Ajak Ara mendekorasi tempat belajarnya.",
+                          "Sediakan plastisin untuk membuat bentuk hewan."
+                        ],
+                        "learning_hacks": [
+                          "Gunakan gambar atau sketsa saat menjelaskan sesuatu.",
+                          "Minta Ara menggambar apa yang baru dipelajari."
+                        ],
+                        "sources": ["multiple_intelligences_gardner.pdf"]
+                      }
+                    },
+                    {
+                      "assessment_id": "712deb8a-da13-46e3-b36e-da27d7f05a17",
+                      "date": "2026-06-11T09:57:32Z",
+                      "activities_observed": ["menggambar", "bermain balok", "menonton video edukasi"],
+                      "talent_label": "Kecerdasan Spasial-Visual",
+                      "progress_summary": "Kemajuan Ara sangat menggembirakan dibandingkan bulan lalu.",
+                      "full_response": {
+                        "talent_label": "Kecerdasan Spasial-Visual",
+                        "empathetic_analysis": "Kami memahami kekhawatiran Anda...\n\nAra menunjukkan perkembangan yang pesat...",
+                        "theoretical_basis": "Teori Multiple Intelligences Gardner mendukung...",
+                        "progress_analysis": "Dibandingkan bulan lalu, Ara kini lebih mampu fokus pada aktivitas konstruksi.",
+                        "home_activities": [
+                          "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+                          "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+                          "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan favoritnya."
+                        ],
+                        "learning_hacks": [
+                          "Gunakan gambar atau sketsa saat menjelaskan sesuatu, bukan hanya kata-kata.",
+                          "Beri Ara 'tugas visual': minta dia menggambar apa yang baru dipelajari."
+                        ],
+                        "sources": ["multiple_intelligences_gardner.pdf", "learning_styles_vak.pdf"]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "service_error", "message": "failed to fetch assessments" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments": {
+      "get": {
+        "summary": "Get Assessments by Child",
+        "description": "Get all assessments for a specific child (raw DB records with input_payload and ai_response as JSONB).",
+        "operationId": "getAssessments",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "child_id",
+            "in": "query",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Assessment" }
+                },
+                "example": [
+                  {
+                    "id": "712deb8a-da13-46e3-b36e-da27d7f05a17",
+                    "child_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "assessment_date": "2026-06-11T09:57:32Z",
+                    "input_payload": "{\"child_id\":\"123e4567-e89b-12d3-a456-426614174000\",\"daily_activities\":[\"menggambar\",\"bermain balok\"],\"parent_anxiety\":\"Anak susah fokus\",\"positive_triggers\":\"Antusias saat membangun sesuatu\",\"parent_goals\":\"Ingin tahu cara mendampingi belajar\"}",
+                    "ai_response": "{\"talent_label\":\"Kecerdasan Spasial-Visual\",\"empathetic_analysis\":\"...\",\"theoretical_basis\":\"...\",\"home_activities\":[\"...\"],\"learning_hacks\":[\"...\"],\"sources\":[\"multiple_intelligences_gardner.pdf\"]}",
+                    "created_at": "2026-06-11T09:57:58Z"
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Missing child_id query parameter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "bad_request", "message": "child_id query parameter is required" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - child does not belong to this user",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "forbidden", "message": "Access denied" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Generate Insights (New Assessment)",
+        "description": "Submit a parent's observations about their child to receive an AI-generated empathetic talent analysis, home activity recommendations, and learning hacks. The result is saved as a new Assessment record. Previous assessment + feedback history is automatically used to generate `progress_analysis` and improve `home_activities`.",
+        "operationId": "generateInsights",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AssessmentRequest" },
+              "example": {
+                "child_id": "123e4567-e89b-12d3-a456-426614174000",
+                "daily_activities": ["menggambar", "bermain balok", "menonton video edukasi"],
+                "parent_anxiety": "Anak saya susah fokus dan selalu bergerak, saya khawatir dia tidak bisa belajar dengan baik di sekolah.",
+                "positive_triggers": "Sangat antusias saat diajak membangun sesuatu dari balok atau kardus bekas.",
+                "parent_goals": "Ingin tahu cara terbaik mendampingi anak belajar di rumah sesuai karakternya."
               }
             }
           }
@@ -243,44 +712,249 @@
             "description": "Insights generated successfully",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsightResponse"
+                "schema": { "$ref": "#/components/schemas/InsightResponse" },
+                "example": {
+                  "talent_label": "Kecerdasan Spasial-Visual",
+                  "empathetic_analysis": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya. Anak yang terus bergerak seringkali bukan tanda masalah, melainkan tanda energi kognitif yang tinggi.\n\nBerdasarkan aktivitas seperti membangun balok dan menggambar, Ara menunjukkan kecerdasan Spasial-Visual yang kuat. Kemampuan ini adalah fondasi bagi profesi seperti arsitek, desainer, dan insinyur.",
+                  "theoretical_basis": "Berdasarkan teori Kecerdasan Majemuk (Multiple Intelligences) Howard Gardner, kecerdasan spasial-visual ditandai dengan kemampuan anak untuk berpikir dalam tiga dimensi dan merepresentasikan dunia secara visual.",
+                  "progress_analysis": "Dibandingkan bulan lalu, Ara kini lebih mampu fokus pada aktivitas konstruksi dan menyelesaikannya hingga tuntas. Ini adalah perkembangan yang luar biasa, Anda sudah melakukan hal yang tepat!",
+                  "home_activities": [
+                    "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+                    "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+                    "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan favoritnya."
+                  ],
+                  "learning_hacks": [
+                    "Saat menjelaskan sesuatu, gunakan gambar atau sketsa sederhana, bukan hanya kata-kata.",
+                    "Beri Ara 'tugas visual': minta dia menggambar apa yang baru dipelajari sebagai pengganti menulis ringkasan."
+                  ],
+                  "sources": ["multiple_intelligences_gardner.pdf", "learning_styles_vak.pdf"]
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid payload or request format",
+            "description": "Invalid payload",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "invalid_payload"
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Invalid request body: Key: 'AssessmentRequest.ChildName' Error:Field validation for 'ChildName' failed on the 'required' tag"
-                    }
-                  }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": "invalid_payload",
+                  "message": "Invalid request body: Key: 'AssessmentRequest.ChildID' Error:Field validation for 'ChildID' failed on the 'required' tag"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Missing or invalid token",
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "service_error", "message": "llm error: context deadline exceeded" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{id}": {
+      "get": {
+        "summary": "Get Assessment by ID",
+        "description": "Fetch a single assessment record (raw DB object) by its UUID.",
+        "operationId": "getAssessment",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Assessment UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Assessment" },
+                "example": {
+                  "id": "712deb8a-da13-46e3-b36e-da27d7f05a17",
+                  "child_id": "123e4567-e89b-12d3-a456-426614174000",
+                  "assessment_date": "2026-06-11T09:57:32Z",
+                  "input_payload": "{\"child_id\":\"123e4567-e89b-12d3-a456-426614174000\",\"daily_activities\":[\"menggambar\",\"bermain balok\"],\"parent_anxiety\":\"Anak susah fokus\",\"positive_triggers\":\"Antusias saat membangun sesuatu\",\"parent_goals\":\"Ingin tahu cara mendampingi belajar\"}",
+                  "ai_response": "{\"talent_label\":\"Kecerdasan Spasial-Visual\",\"empathetic_analysis\":\"...\",\"home_activities\":[\"...\"],\"sources\":[\"multiple_intelligences_gardner.pdf\"]}",
+                  "created_at": "2026-06-11T09:57:58Z"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - assessment does not belong to this user's child",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "forbidden", "message": "Access denied" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "not_found", "message": "Assessment not found" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Assessment",
+        "operationId": "deleteAssessment",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Assessment UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "Invalid or expired token"
-                    }
+                  "properties": { "message": { "type": "string" } }
+                },
+                "example": { "message": "Assessment deleted successfully" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "forbidden", "message": "Access denied" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "not_found", "message": "Assessment not found" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/children/{id}/feedback": {
+      "post": {
+        "summary": "Submit Activity Feedback",
+        "description": "Submit parent feedback for an activity under the child's LATEST assessment. Backend resolves the assessment automatically — no need to pass or know `assessment_id`.\n\nActivity can be:\n- A **recommended activity** from `GET /api/children/{id}/home-activities` (copy `activity_name` as-is)\n- Any **free-text activity** the parent did independently\n\nSubmitting feedback marks the matching activity as `done: true` in the home-activities list (case-insensitive match). This data is also injected into the next RAG assessment prompt to improve future recommendations.",
+        "operationId": "submitFeedback",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Child UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SubmitFeedbackRequest" },
+              "examples": {
+                "recommended_activity_struggled": {
+                  "summary": "Recommended activity — struggled",
+                  "value": {
+                    "activity_name": "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+                    "parent_experience": "Anak sangat antusias tapi kesulitan menempelkan kardusnya karena lem yang kurang kuat. Dia jadi sedikit frustrasi di akhir.",
+                    "status": "struggled"
                   }
+                },
+                "recommended_activity_completed": {
+                  "summary": "Recommended activity — completed",
+                  "value": {
+                    "activity_name": "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+                    "parent_experience": "Ara sangat senang dan fokus selama 30 menit penuh. Hasilnya bagus sekali dan dia bangga memperlihatkannya.",
+                    "status": "completed"
+                  }
+                },
+                "free_text_activity": {
+                  "summary": "Free-text activity (not from AI recommendation)",
+                  "value": {
+                    "activity_name": "Membuat origami burung bersama kakek",
+                    "parent_experience": "Ara sangat sabar mengikuti langkah-langkah lipatan kertas. Butuh 2 kali percobaan tapi akhirnya berhasil.",
+                    "status": "completed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feedback saved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                },
+                "example": { "message": "Feedback saved successfully" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid payload",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": "invalid_payload",
+                  "message": "Key: 'SubmitFeedbackRequest.Status' Error:Field validation for 'Status' failed on the 'oneof' tag"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "unauthorized", "message": "Missing or invalid token" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — no assessment found for this child yet. Run POST /api/assessments first.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "error": "service_error",
+                  "message": "no assessment found for child — run an assessment first before submitting feedback"
                 }
               }
             }
@@ -289,19 +963,8 @@
             "description": "Internal Server Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "service_error"
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "failed to query vector store: database connection timeout"
-                    }
-                  }
-                }
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "error": "service_error", "message": "failed to save feedback" }
               }
             }
           }
@@ -319,18 +982,23 @@
       }
     },
     "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "service": { "type": "string", "example": "bimbi-ai-backend" },
+          "version": { "type": "string", "example": "1.0.0" }
+        }
+      },
       "RegisterRequest": {
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["email", "password"],
         "properties": {
           "email": {
             "type": "string",
             "format": "email",
             "description": "User email address",
-            "example": "user@example.com"
+            "example": "orang.tua@example.com"
           },
           "password": {
             "type": "string",
@@ -338,87 +1006,90 @@
             "description": "User password (minimum 6 characters)",
             "example": "password123"
           }
-        },
-        "example": {
-          "email": "user@example.com",
-          "password": "password123"
         }
       },
       "LoginRequest": {
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["email", "password"],
         "properties": {
           "email": {
             "type": "string",
             "format": "email",
             "description": "User email address",
-            "example": "user@example.com"
+            "example": "orang.tua@example.com"
           },
           "password": {
             "type": "string",
             "description": "User password",
             "example": "password123"
           }
-        },
-        "example": {
-          "email": "user@example.com",
-          "password": "password123"
         }
       },
       "User": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1
-          },
-          "email": {
+          "id": { "type": "string", "format": "uuid", "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479" },
+          "email": { "type": "string", "format": "email", "example": "orang.tua@example.com" },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-11T03:00:00Z" },
+          "updated_at": { "type": "string", "format": "date-time", "example": "2026-06-11T03:00:00Z" }
+        }
+      },
+      "CreateChildRequest": {
+        "type": "object",
+        "required": ["name", "birth_date"],
+        "properties": {
+          "name": { "type": "string", "example": "Ara" },
+          "birth_date": {
             "type": "string",
-            "format": "email",
-            "example": "user@example.com"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-06-02T02:12:45Z"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-06-02T02:12:45Z"
+            "format": "date",
+            "description": "Format: YYYY-MM-DD",
+            "example": "2021-05-20"
           }
+        }
+      },
+      "Child": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "example": "68a212bf-289c-4447-aa52-1f13eeefceed" },
+          "parent_id": { "type": "string", "format": "uuid", "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479" },
+          "name": { "type": "string", "example": "Ara" },
+          "birth_date": { "type": "string", "format": "date-time", "example": "2021-05-20T00:00:00Z" },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-01T10:00:00Z" },
+          "updated_at": { "type": "string", "format": "date-time", "example": "2026-06-01T10:00:00Z" }
+        }
+      },
+      "Assessment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "example": "712deb8a-da13-46e3-b36e-da27d7f05a17" },
+          "child_id": { "type": "string", "format": "uuid", "example": "123e4567-e89b-12d3-a456-426614174000" },
+          "assessment_date": { "type": "string", "format": "date-time", "example": "2026-06-11T09:57:32Z" },
+          "input_payload": {
+            "type": "string",
+            "description": "Raw JSON string of the original request payload",
+            "example": "{\"child_id\":\"123e4567-e89b-12d3-a456-426614174000\",\"daily_activities\":[\"menggambar\",\"bermain balok\"],\"parent_anxiety\":\"Anak susah fokus\",\"positive_triggers\":\"Antusias saat membangun sesuatu\",\"parent_goals\":\"Ingin tahu cara mendampingi belajar\"}"
+          },
+          "ai_response": {
+            "type": "string",
+            "description": "Raw JSON string of the AI-generated insights",
+            "example": "{\"talent_label\":\"Kecerdasan Spasial-Visual\",\"empathetic_analysis\":\"...\",\"theoretical_basis\":\"...\",\"home_activities\":[\"...\"],\"learning_hacks\":[\"...\"],\"sources\":[\"multiple_intelligences_gardner.pdf\"]}"
+          },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-11T09:57:58Z" }
         }
       },
       "AssessmentRequest": {
         "type": "object",
-        "required": [
-          "child_name",
-          "child_age",
-          "daily_activities",
-          "parent_anxiety",
-          "positive_triggers",
-          "parent_goals"
-        ],
+        "required": ["child_id", "daily_activities", "parent_anxiety", "positive_triggers", "parent_goals"],
         "properties": {
-          "child_name": {
+          "child_id": {
             "type": "string",
-            "description": "Name of the child being assessed",
-            "example": "Ara"
-          },
-          "child_age": {
-            "type": "integer",
-            "description": "Age of the child in years",
-            "example": 5
+            "format": "uuid",
+            "description": "UUID of the child profile",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
           },
           "daily_activities": {
             "type": "array",
-            "items": {
-              "type": "string"
-            },
+            "items": { "type": "string" },
             "description": "List of activities the child frequently does at home",
             "example": ["menggambar", "bermain balok", "menonton video edukasi"]
           },
@@ -437,14 +1108,6 @@
             "description": "What the parent hopes to achieve or understand about their child",
             "example": "Ingin tahu cara terbaik mendampingi anak belajar di rumah sesuai karakternya."
           }
-        },
-        "example": {
-          "child_name": "Ara",
-          "child_age": 5,
-          "daily_activities": ["menggambar", "bermain balok", "menonton video edukasi"],
-          "parent_anxiety": "Anak saya susah fokus dan selalu bergerak, saya khawatir dia tidak bisa belajar dengan baik di sekolah.",
-          "positive_triggers": "Sangat antusias saat diajak membangun sesuatu dari balok atau kardus bekas.",
-          "parent_goals": "Ingin tahu cara terbaik mendampingi anak belajar di rumah sesuai karakternya."
         }
       },
       "InsightResponse": {
@@ -452,20 +1115,28 @@
         "properties": {
           "talent_label": {
             "type": "string",
-            "description": "Kecerdasan utama anak berdasarkan teori Multiple Intelligences (misal: Kecerdasan Spasial-Visual)",
+            "description": "Kecerdasan utama anak berdasarkan teori Multiple Intelligences",
             "example": "Kecerdasan Spasial-Visual"
           },
           "empathetic_analysis": {
             "type": "string",
-            "description": "Dua paragraf: paragraf pertama memvalidasi kekhawatiran orang tua, paragraf kedua membingkai ulang sebagai potensi bakat tersembunyi.",
-            "example": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya. Anak yang terus bergerak seringkali bukan tanda masalah, melainkan tanda energi kognitif yang tinggi.\n\nBerdasarkan aktivitas seperti membangun balok dan menggambar, Ara menunjukkan kecerdasan Spasial-Visual yang kuat. Kemampuan ini adalah fondasi bagi profesi seperti arsitek, desainer, dan insinyur."
+            "description": "Dua paragraf: validasi kekhawatiran + bingkai ulang sebagai potensi bakat",
+            "example": "Kekhawatiran Anda sangat wajar...\n\nBerdasarkan aktivitas seperti membangun balok..."
+          },
+          "theoretical_basis": {
+            "type": "string",
+            "description": "Landasan teori psikologi atau pendidikan yang mendasari analisis",
+            "example": "Berdasarkan teori Kecerdasan Majemuk Howard Gardner..."
+          },
+          "progress_analysis": {
+            "type": "string",
+            "description": "Perbandingan perkembangan dari asesmen sebelumnya (hanya ada jika ada asesmen sebelumnya)",
+            "example": "Dibandingkan bulan lalu, Ara kini lebih mampu fokus pada aktivitas konstruksi."
           },
           "home_activities": {
             "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "3 rekomendasi aktivitas rumah yang sangat spesifik menggunakan benda-benda rumah tangga biasa",
+            "items": { "type": "string" },
+            "description": "3 rekomendasi aktivitas rumah yang spesifik",
             "example": [
               "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
               "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
@@ -474,10 +1145,8 @@
           },
           "learning_hacks": {
             "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "2 tips praktis mendampingi gaya belajar anak di rumah",
+            "items": { "type": "string" },
+            "description": "Tips praktis mendampingi gaya belajar anak di rumah",
             "example": [
               "Saat menjelaskan sesuatu, gunakan gambar atau sketsa sederhana, bukan hanya kata-kata.",
               "Beri Ara 'tugas visual': minta dia menggambar apa yang baru dipelajari sebagai pengganti menulis ringkasan."
@@ -485,26 +1154,134 @@
           },
           "sources": {
             "type": "array",
-            "items": {
-              "type": "string"
-            },
+            "items": { "type": "string" },
             "description": "Nama file PDF sumber konteks RAG yang digunakan",
-            "example": [
-              "multiple_intelligences_gardner.pdf"
-            ]
+            "example": ["multiple_intelligences_gardner.pdf", "learning_styles_vak.pdf"]
+          }
+        }
+      },
+      "TimelineItem": {
+        "type": "object",
+        "properties": {
+          "assessment_id": { "type": "string", "format": "uuid", "example": "712deb8a-da13-46e3-b36e-da27d7f05a17" },
+          "date": { "type": "string", "format": "date-time", "example": "2026-06-11T09:57:32Z" },
+          "activities_observed": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["menggambar", "bermain balok", "menonton video edukasi"]
+          },
+          "talent_label": { "type": "string", "example": "Kecerdasan Spasial-Visual" },
+          "progress_summary": {
+            "type": "string",
+            "example": "Kemajuan Ara sangat menggembirakan dibandingkan bulan lalu."
+          },
+          "full_response": { "$ref": "#/components/schemas/InsightResponse" }
+        }
+      },
+      "DashboardResponse": {
+        "type": "object",
+        "properties": {
+          "child_id": { "type": "string", "format": "uuid", "example": "123e4567-e89b-12d3-a456-426614174000" },
+          "total_assessments": { "type": "integer", "example": 2 },
+          "timeline": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TimelineItem" }
           }
         }
       },
       "ErrorResponse": {
         "type": "object",
         "properties": {
-          "error": {
+          "error": { "type": "string", "example": "invalid_payload" },
+          "message": { "type": "string", "example": "Key: 'Field' Error:Field validation failed" }
+        }
+      },
+      "SubmitFeedbackRequest": {
+        "type": "object",
+        "required": ["activity_name", "parent_experience", "status"],
+        "properties": {
+          "activity_name": {
             "type": "string",
-            "example": "Invalid request payload"
+            "description": "Name of the activity. Copy as-is from home-activities list for recommended ones, or enter free-text for custom activities.",
+            "example": "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur."
           },
-          "message": {
+          "parent_experience": {
             "type": "string",
-            "example": "Key: 'RegisterRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
+            "description": "Parent's notes about how the activity went",
+            "example": "Anak sangat antusias tapi kesulitan menempelkan kardusnya karena lem yang kurang kuat. Dia jadi sedikit frustrasi di akhir."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "struggled"],
+            "description": "completed = activity went well; struggled = child or parent had difficulty",
+            "example": "struggled"
+          }
+        }
+      },
+      "ActionFeedback": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "example": "f1e2d3c4-b5a6-7890-abcd-123456789012" },
+          "assessment_id": { "type": "string", "format": "uuid", "example": "712deb8a-da13-46e3-b36e-da27d7f05a17" },
+          "activity_name": {
+            "type": "string",
+            "example": "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur."
+          },
+          "parent_experience": {
+            "type": "string",
+            "example": "Anak sangat antusias tapi kesulitan menempelkan kardusnya karena lem yang kurang kuat."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "struggled"],
+            "example": "struggled"
+          },
+          "created_at": { "type": "string", "format": "date-time", "example": "2026-06-11T10:15:00Z" }
+        }
+      },
+      "HomeActivityItem": {
+        "type": "object",
+        "description": "A single AI-recommended home activity with its completion status.",
+        "properties": {
+          "activity_name": {
+            "type": "string",
+            "description": "The recommended activity text as generated by the AI.",
+            "example": "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur."
+          },
+          "done": {
+            "type": "boolean",
+            "description": "True if the parent has already submitted feedback for this activity. Any submission (completed or struggled) marks it as done.",
+            "example": false
+          }
+        }
+      },
+      "HomeActivitiesResponse": {
+        "type": "object",
+        "description": "Response for GET /api/children/{id}/home-activities. Contains the AI-recommended home activities from the child's latest assessment, each annotated with a done flag derived from action_feedbacks table. The assessment_id field tells the frontend which assessment to target when submitting feedback.",
+        "properties": {
+          "assessment_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the latest assessment. Informational only — you do NOT need to pass this when submitting feedback. Use POST /api/children/{child_id}/feedback instead.",
+            "example": "712deb8a-da13-46e3-b36e-da27d7f05a17"
+          },
+          "activities": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HomeActivityItem" },
+            "example": [
+              {
+                "activity_name": "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
+                "done": true
+              },
+              {
+                "activity_name": "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
+                "done": false
+              },
+              {
+                "activity_name": "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan favoritnya.",
+                "done": false
+              }
+            ]
           }
         }
       }

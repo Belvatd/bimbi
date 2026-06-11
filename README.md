@@ -24,7 +24,7 @@ Frontend Request
       │
       ▼
 ┌──────────────────┐
-│ Gin API          │  POST /api/generate-insights (Dilindungi JWT)
+│ Gin API          │  POST /api/assessments (Dilindungi JWT)
 │ (cmd/api)        │
 └────────┬─────────┘
          │  1. Semantic Search
@@ -148,17 +148,116 @@ Melakukan otentikasi dan mengembalikan Bearer Token (JWT).
 
 ---
 
-### Kumpulan Endpoint Insight (Dilindungi JWT)
+### Kumpulan Endpoint Tracking & Insight (Dilindungi JWT)
 
-#### `POST /api/generate-insights`
-Menghasilkan *insight* psikologi perkembangan anak untuk orang tua menggunakan RAG.
+#### `POST /api/children`
+Mendaftarkan profil anak ke database untuk pelacakan perkembangan (Longitudinal Tracking).
 **Header:** `Authorization: Bearer <token_dari_login>`
 
 **Request Body:**
 ```json
 {
-  "child_name": "Ara",
-  "child_age": 5,
+  "name": "Ara",
+  "birth_date": "2021-05-20"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "parent_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "Ara",
+  "birth_date": "2021-05-20T00:00:00Z",
+  "created_at": "2026-06-02T02:12:45Z",
+  "updated_at": "2026-06-02T02:12:45Z"
+}
+```
+
+#### `GET /api/children`
+Mengambil semua daftar profil anak milik *user* (orang tua) yang sedang *login*.
+
+#### `GET /api/children/:id`
+Mengambil detail satu profil anak berdasarkan ID.
+
+#### `GET /api/children/:id/dashboard`
+Mengambil riwayat asesmen anak yang telah diformat khusus untuk tampilan dashboard.
+**Response:**
+```json
+{
+  "child_id": "123e4567-e89b-12d3-a456-426614174000",
+  "total_assessments": 1,
+  "timeline": [
+    {
+      "assessment_id": "a4d3-12d3-123e4567-e89b-426614174000",
+      "date": "2026-06-02T02:12:45Z",
+      "activities_observed": ["menggambar", "bermain balok", "menonton video edukasi"],
+      "talent_label": "Kecerdasan Spasial-Visual",
+      "progress_summary": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya...",
+      "full_response": {
+        "talent_label": "Kecerdasan Spasial-Visual",
+        "empathetic_analysis": "Kekhawatiran Anda sangat wajar...",
+        "theoretical_basis": "Berdasarkan teori...",
+        "home_activities": [],
+        "learning_hacks": [],
+        "sources": []
+      }
+    }
+  ]
+}
+```
+
+#### `GET /api/children/:id/home-activities`
+Mengambil rekomendasi aktivitas rumah tangga untuk anak berdasarkan hasil asesmen terakhir, dilengkapi dengan status apakah aktivitas tersebut sudah dilakukan (`done: true`) atau belum.
+
+**Response:**
+```json
+{
+  "assessment_id": "712deb8a-da13-46e3-b36e-da27d7f05a17",
+  "activities": [
+    {
+      "activity_name": "Bangun 'kota mini' dari kardus bekas sabun",
+      "done": true
+    },
+    {
+      "activity_name": "Sediakan plastisin atau tanah liat untuk membuat bentuk hewan",
+      "done": false
+    }
+  ]
+}
+```
+
+#### `POST /api/children/:id/feedback`
+Menyimpan feedback atau pengalaman orang tua setelah mempraktikkan suatu aktivitas. Backend secara otomatis menautkan feedback ini ke **asesmen terakhir (latest assessment)** milik anak. Aktivitas ini dapat berupa pilihan dari endpoint `GET home-activities` di atas, ATAU aktivitas bebas (*free-text*) yang dilakukan mandiri oleh orang tua. Feedback ini akan digunakan sebagai memori konteks RAG pada evaluasi bulan berikutnya.
+**Header:** `Authorization: Bearer <token_dari_login>`
+
+**Request Body:**
+```json
+{
+  "activity_name": "Bangun 'kota mini' dari kardus bekas sabun",
+  "parent_experience": "Anak sangat antusias tapi kesulitan menempelkan kardusnya karena lem yang kurang kuat.",
+  "status": "struggled"
+}
+```
+*Catatan:*
+- `status` yang didukung adalah `completed` atau `struggled`.
+- Mengirim feedback akan secara otomatis mengubah status aktivitas yang cocok menjadi `done: true` di endpoint `GET /api/children/:id/home-activities`.
+
+#### `PUT /api/children/:id`
+Mengubah data profil anak (nama atau tanggal lahir).
+**Request Body:** Sama seperti `POST /api/children`.
+
+#### `DELETE /api/children/:id`
+Menghapus profil anak dari sistem.
+
+#### `POST /api/assessments`
+Menghasilkan *insight* psikologi perkembangan anak untuk orang tua menggunakan RAG dan melacak progres anak dari waktu ke waktu. Hasil asesmen akan otomatis disimpan ke PostgreSQL.
+**Header:** `Authorization: Bearer <token_dari_login>`
+
+**Request Body:**
+```json
+{
+  "child_id": "123e4567-e89b-12d3-a456-426614174000",
   "daily_activities": [
     "menggambar",
     "bermain balok",
@@ -175,6 +274,8 @@ Menghasilkan *insight* psikologi perkembangan anak untuk orang tua menggunakan R
 {
   "talent_label": "Kecerdasan Spasial-Visual",
   "empathetic_analysis": "Kekhawatiran Anda sangat wajar dan banyak orang tua merasakannya. Anak yang terus bergerak seringkali bukan tanda masalah, melainkan tanda energi kognitif yang tinggi.\n\nBerdasarkan aktivitas seperti membangun balok dan menggambar, Ara menunjukkan kecerdasan Spasial-Visual yang kuat. Kemampuan ini adalah fondasi bagi profesi seperti arsitek, desainer, dan insinyur.",
+  "theoretical_basis": "Berdasarkan teori Kecerdasan Majemuk Howard Gardner, anak dengan kecerdasan spasial-visual memiliki kemampuan tinggi dalam memahami dunia melalui gambar...",
+  "progress_analysis": "Kami melihat perubahan positif! Jika sebelumnya Anda khawatir Ara mudah bosan, kini fokusnya meningkat saat diberikan kebebasan eksplorasi...",
   "home_activities": [
     "Bangun 'kota mini' dari kardus bekas sabun dan botol shampoo bersama Ara selama 15 menit sebelum tidur.",
     "Ajak Ara mendekorasi tempat belajarnya sendiri dengan gambar-gambar yang dia buat.",
@@ -189,6 +290,15 @@ Menghasilkan *insight* psikologi perkembangan anak untuk orang tua menggunakan R
   ]
 }
 ```
+
+#### `GET /api/assessments?child_id=<uuid>`
+Mengambil semua riwayat asesmen yang pernah dilakukan untuk anak tertentu, diurutkan dari yang terbaru.
+
+#### `GET /api/assessments/:id`
+Mengambil detail satu hasil asesmen berdasarkan ID.
+
+#### `DELETE /api/assessments/:id`
+Menghapus riwayat asesmen tertentu.
 
 ---
 
