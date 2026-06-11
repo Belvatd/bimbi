@@ -158,6 +158,7 @@ Mendaftarkan profil anak ke database untuk pelacakan perkembangan (Longitudinal 
 ```json
 {
   "name": "Ara",
+  "gender": "female",
   "birth_date": "2021-05-20"
 }
 ```
@@ -168,6 +169,7 @@ Mendaftarkan profil anak ke database untuk pelacakan perkembangan (Longitudinal 
   "id": "123e4567-e89b-12d3-a456-426614174000",
   "parent_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "name": "Ara",
+  "gender": "female",
   "birth_date": "2021-05-20T00:00:00Z",
   "created_at": "2026-06-02T02:12:45Z",
   "updated_at": "2026-06-02T02:12:45Z"
@@ -244,7 +246,7 @@ Menyimpan feedback atau pengalaman orang tua setelah mempraktikkan suatu aktivit
 - Mengirim feedback akan secara otomatis mengubah status aktivitas yang cocok menjadi `done: true` di endpoint `GET /api/children/:id/home-activities`.
 
 #### `PUT /api/children/:id`
-Mengubah data profil anak (nama atau tanggal lahir).
+Mengubah data profil anak (nama, gender, atau tanggal lahir).
 **Request Body:** Sama seperti `POST /api/children`.
 
 #### `DELETE /api/children/:id`

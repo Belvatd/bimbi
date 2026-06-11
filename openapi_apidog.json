@@ -406,6 +406,7 @@
                   "id": "123e4567-e89b-12d3-a456-426614174000",
                   "parent_id": "orang.tua@example.com",
                   "name": "Ara Putri",
+                  "gender": "female",
                   "birth_date": "2021-05-20T00:00:00Z",
                   "created_at": "2026-06-01T10:00:00Z",
                   "updated_at": "2026-06-11T10:00:00Z"
@@ -1036,9 +1037,10 @@
       },
       "CreateChildRequest": {
         "type": "object",
-        "required": ["name", "birth_date"],
+        "required": ["name", "gender", "birth_date"],
         "properties": {
           "name": { "type": "string", "example": "Ara" },
+          "gender": { "type": "string", "example": "female" },
           "birth_date": {
             "type": "string",
             "format": "date",
@@ -1053,6 +1055,7 @@
           "id": { "type": "string", "format": "uuid", "example": "68a212bf-289c-4447-aa52-1f13eeefceed" },
           "parent_id": { "type": "string", "format": "uuid", "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479" },
           "name": { "type": "string", "example": "Ara" },
+          "gender": { "type": "string", "example": "female" },
           "birth_date": { "type": "string", "format": "date-time", "example": "2021-05-20T00:00:00Z" },
           "created_at": { "type": "string", "format": "date-time", "example": "2026-06-01T10:00:00Z" },
           "updated_at": { "type": "string", "format": "date-time", "example": "2026-06-01T10:00:00Z" }

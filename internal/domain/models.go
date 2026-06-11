@@ -10,6 +10,7 @@ type Child struct {
 	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	ParentID  uuid.UUID `gorm:"type:uuid;not null;index" json:"parent_id"` // Matches User.ID
 	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
+	Gender    string    `gorm:"type:varchar(20);not null;default:'unknown'" json:"gender"`
 	BirthDate time.Time `gorm:"type:date;not null" json:"birth_date"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

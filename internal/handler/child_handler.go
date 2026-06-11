@@ -56,6 +56,7 @@ func (h *ChildHandler) CreateChild(c *gin.Context) {
 	child := &domain.Child{
 		ParentID:  userUUID,
 		Name:      req.Name,
+		Gender:    req.Gender,
 		BirthDate: birthDate,
 	}
 
@@ -146,6 +147,7 @@ func (h *ChildHandler) UpdateChild(c *gin.Context) {
 	}
 
 	child.Name = req.Name
+	child.Gender = req.Gender
 	child.BirthDate = birthDate
 
 	if err := h.childRepo.Update(c.Request.Context(), child); err != nil {

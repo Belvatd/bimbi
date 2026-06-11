@@ -4,11 +4,13 @@ import "time"
 
 type CreateChildRequest struct {
 	Name      string `json:"name" binding:"required"`
+	Gender    string `json:"gender" binding:"required"`
 	BirthDate string `json:"birth_date" binding:"required"` // Format: YYYY-MM-DD
 }
 
 type UpdateChildRequest struct {
 	Name      string `json:"name" binding:"required"`
+	Gender    string `json:"gender" binding:"required"`
 	BirthDate string `json:"birth_date" binding:"required"` // Format: YYYY-MM-DD
 }
 
