@@ -68,3 +68,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"token":   token,
 	})
 }
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}

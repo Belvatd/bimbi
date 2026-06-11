@@ -45,7 +45,21 @@ func (r *postgresChildRepo) Update(ctx context.Context, child *domain.Child) err
 }
 
 func (r *postgresChildRepo) Delete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Where("id = ?", id).Delete(&domain.Child{}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Delete feedback records associated with this child's assessments
+		if err := tx.Exec("DELETE FROM action_feedbacks WHERE assessment_id IN (SELECT id FROM assessments WHERE child_id = ?)", id).Error; err != nil {
+			return err
+		}
+		// 2. Delete assessment records associated with this child
+		if err := tx.Where("child_id = ?", id).Delete(&domain.Assessment{}).Error; err != nil {
+			return err
+		}
+		// 3. Delete the child profile
+		if err := tx.Where("id = ?", id).Delete(&domain.Child{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 type postgresAssessmentRepo struct {

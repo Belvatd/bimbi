@@ -34,13 +34,21 @@ type InsightResponse struct {
 	Sources            []string `json:"sources"` // RAG source PDF filenames
 }
 
+type SubmittedFeedback struct {
+	ActivityName     string    `json:"activity_name"`
+	ParentExperience string    `json:"parent_experience"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
 type TimelineItem struct {
-	AssessmentID       string          `json:"assessment_id"`
-	Date               time.Time       `json:"date"`
-	ActivitiesObserved []string        `json:"activities_observed"`
-	TalentLabel        string          `json:"talent_label"`
-	ProgressSummary    string          `json:"progress_summary"`
-	FullResponse       InsightResponse `json:"full_response"`
+	AssessmentID       string              `json:"assessment_id"`
+	Date               time.Time           `json:"date"`
+	ActivitiesObserved []string            `json:"activities_observed"`
+	TalentLabel        string              `json:"talent_label"`
+	ProgressSummary    string              `json:"progress_summary"`
+	FullResponse       InsightResponse     `json:"full_response"`
+	Feedbacks          []SubmittedFeedback `json:"feedbacks"`
 }
 
 type DashboardResponse struct {

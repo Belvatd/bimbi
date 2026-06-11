@@ -138,6 +138,24 @@ func (s *ragService) GetChildDashboard(ctx context.Context, childID string) (dom
 			progressSummary = ai.EmpatheticAnalysis
 		}
 
+		var submittedFeedbacks []domain.SubmittedFeedback
+		if s.feedbackRepo != nil {
+			fbs, err := s.feedbackRepo.GetFeedbacksByAssessmentID(ctx, a.ID.String())
+			if err == nil {
+				for _, fb := range fbs {
+					submittedFeedbacks = append(submittedFeedbacks, domain.SubmittedFeedback{
+						ActivityName:     fb.ActivityName,
+						ParentExperience: fb.ParentExperience,
+						Status:           fb.Status,
+						CreatedAt:        fb.CreatedAt,
+					})
+				}
+			}
+		}
+		if submittedFeedbacks == nil {
+			submittedFeedbacks = []domain.SubmittedFeedback{}
+		}
+
 		timeline = append(timeline, domain.TimelineItem{
 			AssessmentID:       a.ID.String(),
 			Date:               a.AssessmentDate,
@@ -145,6 +163,7 @@ func (s *ragService) GetChildDashboard(ctx context.Context, childID string) (dom
 			TalentLabel:        ai.TalentLabel,
 			ProgressSummary:    progressSummary,
 			FullResponse:       ai,
+			Feedbacks:          submittedFeedbacks,
 		})
 	}
 
@@ -193,13 +212,31 @@ func (s *ragService) GetHomeActivities(ctx context.Context, childID string) (*do
 	}
 
 	// 4. Build response — mark each activity done if it has a feedback entry
+	recommendedSet := make(map[string]bool, len(aiResp.HomeActivities))
 	items := make([]domain.HomeActivityItem, 0, len(aiResp.HomeActivities))
 	for _, name := range aiResp.HomeActivities {
-		done := completedNames[strings.ToLower(strings.TrimSpace(name))]
+		normalizedName := strings.ToLower(strings.TrimSpace(name))
+		recommendedSet[normalizedName] = true
+		done := completedNames[normalizedName]
 		items = append(items, domain.HomeActivityItem{
 			ActivityName: name,
 			Done:         done,
 		})
+	}
+
+	// 5. Query actual feedbacks to find and append any custom activities that have been completed
+	feedbacks, err := s.feedbackRepo.GetFeedbacksByAssessmentID(ctx, assessmentID)
+	if err == nil {
+		for _, fb := range feedbacks {
+			normalizedFbName := strings.ToLower(strings.TrimSpace(fb.ActivityName))
+			// If this feedback is for a custom activity (not in the recommended list)
+			if !recommendedSet[normalizedFbName] {
+				items = append(items, domain.HomeActivityItem{
+					ActivityName: fb.ActivityName, // Use original casing from DB
+					Done:         true,
+				})
+			}
+		}
 	}
 
 	return &domain.HomeActivitiesResponse{
